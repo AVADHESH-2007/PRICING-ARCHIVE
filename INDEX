@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pricing Data Portal</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <div class="hero__content">
+        <h1>PRICING ARCHIVE</h1>
+      </div>
+    </header>
+
+    <nav class="nav">
+      <button id="masterDataBtn" type="button" class="nav__button nav__button--left nav__button--master">MASTER DATA</button>
+      <button id="pricingDataBtn" type="button" class="nav__button nav__button--left nav__button--pricing">PRICING DATA</button>
+      <button id="reportsBtn" type="button" class="nav__button nav__button--left nav__button--reports">REPORTS</button>
+    </nav>
+
+    <main class="container">
+      <section id="masterDataPanel" class="master-data-panel hidden" aria-live="polite"></section>
+    </main>
+
+    <footer>
+      <p>© <span id="year"></span> Pricing Data Portal | All Rights Reserved</p>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>
