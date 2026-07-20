@@ -52,7 +52,7 @@ let currentMasterDataView = "material";
 let currentAppView = "master";
 let editingReportRecordId = null;
 let reportsValidationMessage = "";
-let selectedSavedRowId = null;
+let selectedSavedRowIds = new Set();
 let editingSavedRowId = null;
 let savedRecordFilters = {};
 
@@ -393,14 +393,19 @@ function getFilteredSavedRecords() {
   });
 }
 
-function buildSavedTableHeaderRow() {
-  return SAVED_COLS.map((col) => {
+function buildSavedTableHeaderRow(filteredRecords) {
+  const allIds = filteredRecords.map((r) => r.id);
+  const allSelected = allIds.length > 0 && allIds.every((id) => selectedSavedRowIds.has(id));
+  const someSelected = allIds.some((id) => selectedSavedRowIds.has(id));
+  const indeterminate = someSelected && !allSelected;
+  const colHeaders = SAVED_COLS.map((col) => {
     const isActive = savedRecordFilters[col.key]?.active;
     return `<th class="${isActive ? "col-filter-active" : ""}">
       <span class="th-label">${col.label}</span>
       <button type="button" class="col-filter-btn" data-filter-col="${col.key}" title="Filter ${col.label}">&#9660;</button>
     </th>`;
-  }).join("") + "<th>Actions</th>";
+  }).join("");
+  return `<th class="sl-no-cell"><input type="checkbox" id="selectAllSavedRows" title="Select all visible rows" ${allSelected ? "checked" : ""} data-indeterminate="${indeterminate}"></th>` + colHeaders + "<th>Actions</th>";
 }
 
 // ── Filter popup ─────────────────────────────────────────────────────────────
@@ -483,6 +488,13 @@ function closeFilterPopup() {
   activeFilterCol = null;
 }
 
+function syncSelectionToFilteredRecords() {
+  const visibleIds = new Set(getFilteredSavedRecords().map((r) => r.id));
+  for (const id of [...selectedSavedRowIds]) {
+    if (!visibleIds.has(id)) selectedSavedRowIds.delete(id);
+  }
+}
+
 function applyFilterFromPopup() {
   const popup = document.getElementById("filterPopup");
   if (!popup || !activeFilterCol) return;
@@ -498,12 +510,14 @@ function applyFilterFromPopup() {
     savedRecordFilters[activeFilterCol] = { active: !!value, operator, value, value2 };
   }
   closeFilterPopup();
+  syncSelectionToFilteredRecords();
   renderPricingDataTable();
 }
 
 function clearColumnFilter(colKey) {
   delete savedRecordFilters[colKey];
   closeFilterPopup();
+  syncSelectionToFilteredRecords();
   renderPricingDataTable();
 }
 
@@ -511,7 +525,7 @@ function clearColumnFilter(colKey) {
 
 function buildSavedRowHtml(row, index) {
   const isEditing = row.id === editingSavedRowId;
-  const isChecked = row.id === selectedSavedRowId;
+  const isChecked = selectedSavedRowIds.has(row.id);
   const aprCell = `<td class="apr-no-cell">${escapeHtml(row.aprNumber || "")}</td>`;
   const slCell = `<td class="sl-no-cell"><input type="checkbox" class="saved-row-checkbox" data-row-id="${row.id}" ${isChecked ? "checked" : ""} /><span>${index + 1}</span></td>`;
   if (isEditing) {
@@ -548,13 +562,15 @@ function buildSavedRowHtml(row, index) {
       <td>${escapeHtml(pricingHeadingEntries.find((e) => e.id === row.pricingHeadingId)?.description || "")}</td>
       <td>${escapeHtml(row.value || "")}</td>
       <td>${escapeHtml(row.remarks || "")}</td>
-      <td></td>
+      <td class="entry-actions"></td>
     </tr>
   `;
 }
 
 function renderPricingDataTable() {
-  const hasSelection = !!selectedSavedRowId;
+  const selCount = selectedSavedRowIds.size;
+  const hasSelection = selCount > 0;
+  const isSingleSelection = selCount === 1;
   const isEditingAny = !!editingSavedRowId;
   const entryTableHeaders = `
     <tr>
@@ -572,7 +588,9 @@ function renderPricingDataTable() {
     </tr>`;
   const hasActiveFilters = Object.values(savedRecordFilters).some((f) => f?.active);
   const filteredRecords = getFilteredSavedRecords();
-  const savedTableHeaders = `<tr>${buildSavedTableHeaderRow()}</tr>`;
+  const savedTableHeaders = `<tr>${buildSavedTableHeaderRow(filteredRecords)}</tr>`;
+  // After render, set indeterminate state via JS (can't be done in HTML)
+  // This is handled in a post-render step below.
 
   masterDataPanel.innerHTML = `
     <div class="master-data-card pricing-data-card">
@@ -604,8 +622,9 @@ function renderPricingDataTable() {
           <h3>Saved Pricing Records</h3>
           <div class="table-actions">
             ${hasActiveFilters ? '<button type="button" class="secondary-btn" id="clearAllFiltersBtn">Clear All Filters</button>' : ""}
-            <button type="button" class="edit-btn" id="editSavedRowBtn" ${hasSelection && !isEditingAny ? "" : "disabled"}>Edit</button>
-            <button type="button" class="delete-btn" id="deleteSavedRowBtn" ${hasSelection && !isEditingAny ? "" : "disabled"}>Delete</button>
+            ${hasSelection ? `<span class="selection-count">${selCount} record${selCount > 1 ? "s" : ""} selected</span>` : ""}
+            <button type="button" class="edit-btn" id="editSavedRowBtn" ${isSingleSelection && !isEditingAny ? "" : "disabled"}>Edit</button>
+            <button type="button" class="delete-btn" id="deleteSavedRowBtn" ${isSingleSelection && !isEditingAny ? "" : "disabled"}>Delete</button>
             <button type="button" class="complete-btn" id="completeSavedRowBtn" ${hasSelection && !isEditingAny ? "" : "disabled"}>Complete</button>
           </div>
         </div>
@@ -615,13 +634,19 @@ function renderPricingDataTable() {
             <tbody>
               ${filteredRecords.length
                 ? filteredRecords.map((row, index) => buildSavedRowHtml(row, index)).join("")
-                : `<tr><td colspan="12" class="empty-state">${savedPricingRecords.length ? "No records match the current filters." : "No saved records yet. Save a row above to see it here."}</td></tr>`}
+                : `<tr><td colspan="13" class="empty-state">${savedPricingRecords.length ? "No records match the current filters." : "No saved records yet. Save a row above to see it here."}</td></tr>`}
             </tbody>
           </table>
         </div>
       </div>
     </div>
   `;
+
+  // Set indeterminate state on Select All checkbox (must be done via JS after render)
+  const selectAllCb = document.getElementById("selectAllSavedRows");
+  if (selectAllCb && selectAllCb.dataset.indeterminate === "true") {
+    selectAllCb.indeterminate = true;
+  }
 }
 
 function createPricingDataRow() {
@@ -751,31 +776,42 @@ function handleSavePricingDataRows() {
   renderPricingDataTable();
 }
 
-function handleCompleteSavedRow(rowId) {
-  const row = savedPricingRecords.find((r) => r.id === rowId);
-  if (!row) return;
-
-  const validation = validateSavedRow(row);
-  if (!validation.valid) {
-    pricingDataValidationMessage = validation.message;
+function handleCompleteSavedRows() {
+  if (selectedSavedRowIds.size === 0) {
+    pricingDataValidationMessage = "Please select at least one record to complete.";
     renderPricingDataTable();
     return;
   }
 
-  const completedRow = {
-    ...row,
-    id: `completed-pricing-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    originalId: row.id,
-    completedAt: new Date().toLocaleString(),
-    completedId: `CMP-${Date.now().toString(36).toUpperCase()}`,
-    status: "Completed",
-  };
+  const idsToComplete = [...selectedSavedRowIds];
+  const invalidRows = idsToComplete
+    .map((id) => savedPricingRecords.find((r) => r.id === id))
+    .filter((row) => row && !validateSavedRow(row).valid);
 
-  completedPricingRecords = [...completedPricingRecords, completedRow];
-  savedPricingRecords = savedPricingRecords.filter((r) => r.id !== rowId);
-  selectedSavedRowId = null;
+  if (invalidRows.length) {
+    pricingDataValidationMessage = "One or more selected records have incomplete fields. Please fix them before completing.";
+    renderPricingDataTable();
+    return;
+  }
+
+  const now = new Date().toLocaleString();
+  const newCompleted = idsToComplete.map((id) => {
+    const row = savedPricingRecords.find((r) => r.id === id);
+    return {
+      ...row,
+      id: `completed-pricing-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      originalId: row.id,
+      completedAt: now,
+      completedId: `CMP-${Date.now().toString(36).toUpperCase()}`,
+      status: "Completed",
+    };
+  });
+
+  completedPricingRecords = [...completedPricingRecords, ...newCompleted];
+  savedPricingRecords = savedPricingRecords.filter((r) => !selectedSavedRowIds.has(r.id));
+  selectedSavedRowIds.clear();
   editingSavedRowId = null;
-  pricingDataValidationMessage = "Record marked as completed.";
+  pricingDataValidationMessage = `${newCompleted.length} record${newCompleted.length > 1 ? "s" : ""} marked as completed.`;
   persistPricingDataState();
   renderPricingDataTable();
 }
@@ -1193,25 +1229,27 @@ masterDataPanel.addEventListener("click", (event) => {
     renderFinancialYearEntry();
   } else if (target.id === "clearAllFiltersBtn") {
     savedRecordFilters = {};
+    syncSelectionToFilteredRecords();
     renderPricingDataTable();
   } else if (target.classList.contains("col-filter-btn")) {
     openFilterPopup(target.dataset.filterCol, target);
   } else if (target.id === "editSavedRowBtn") {
-    if (!selectedSavedRowId || editingSavedRowId) return;
-    editingSavedRowId = selectedSavedRowId;
+    if (selectedSavedRowIds.size !== 1 || editingSavedRowId) return;
+    editingSavedRowId = [...selectedSavedRowIds][0];
     pricingDataValidationMessage = "";
     renderPricingDataTable();
   } else if (target.id === "deleteSavedRowBtn") {
-    if (!selectedSavedRowId || editingSavedRowId) return;
+    if (selectedSavedRowIds.size !== 1 || editingSavedRowId) return;
     const confirmed = window.confirm("Are you sure you want to delete this record?");
     if (!confirmed) return;
-    savedPricingRecords = savedPricingRecords.filter((row) => row.id !== selectedSavedRowId);
-    selectedSavedRowId = null;
+    const idToDelete = [...selectedSavedRowIds][0];
+    savedPricingRecords = savedPricingRecords.filter((row) => row.id !== idToDelete);
+    selectedSavedRowIds.clear();
     persistPricingDataState();
     renderPricingDataTable();
   } else if (target.id === "completeSavedRowBtn") {
-    if (!selectedSavedRowId || editingSavedRowId) return;
-    handleCompleteSavedRow(selectedSavedRowId);
+    if (editingSavedRowId) return;
+    handleCompleteSavedRows();
   } else if (target.matches("[data-action='save-saved-row']")) {
     const rowId = target.dataset.id;
     const row = savedPricingRecords.find((r) => r.id === rowId);
@@ -1223,12 +1261,13 @@ masterDataPanel.addEventListener("click", (event) => {
       return;
     }
     editingSavedRowId = null;
-    selectedSavedRowId = null;
+    selectedSavedRowIds.clear();
     pricingDataValidationMessage = "Record updated successfully.";
     persistPricingDataState();
     renderPricingDataTable();
   } else if (target.matches("[data-action='cancel-saved-edit']")) {
     editingSavedRowId = null;
+    selectedSavedRowIds.clear();
     pricingDataValidationMessage = "";
     renderPricingDataTable();
   } else if (target.id === "addPricingDataRowBtn") {
@@ -1273,9 +1312,21 @@ masterDataPanel.addEventListener("click", (event) => {
 });
 
 masterDataPanel.addEventListener("change", (event) => {
-  if (event.target.classList.contains("saved-row-checkbox")) {
+  if (event.target.id === "selectAllSavedRows") {
+    const filteredRecords = getFilteredSavedRecords();
+    if (event.target.checked) {
+      filteredRecords.forEach((r) => selectedSavedRowIds.add(r.id));
+    } else {
+      filteredRecords.forEach((r) => selectedSavedRowIds.delete(r.id));
+    }
+    renderPricingDataTable();
+  } else if (event.target.classList.contains("saved-row-checkbox")) {
     const rowId = event.target.dataset.rowId;
-    selectedSavedRowId = event.target.checked ? rowId : null;
+    if (event.target.checked) {
+      selectedSavedRowIds.add(rowId);
+    } else {
+      selectedSavedRowIds.delete(rowId);
+    }
     renderPricingDataTable();
   } else if (event.target.id === "masterDataModeSelect") {
     currentMasterDataView = event.target.value;
