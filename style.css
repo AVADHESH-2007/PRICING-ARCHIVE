@@ -204,15 +204,15 @@ body {
 }
 
 .pricing-data-table {
-  table-layout: fixed;
+  table-layout: auto;
   width: 100%;
-  min-width: 0;
+  min-width: 900px;
 }
 
 .pricing-data-table select,
 .pricing-data-table input {
   width: 100%;
-  min-width: 0;
+  min-width: 80px;
   padding: 8px 10px;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
@@ -220,8 +220,13 @@ body {
 }
 
 .pricing-data-table td {
-  min-width: 0;
   white-space: nowrap;
+}
+
+.pricing-data-table .entry-actions {
+  white-space: nowrap;
+  width: 1%;
+  padding: 6px 8px;
 }
 
 .master-data-form-grid {
@@ -472,12 +477,25 @@ body {
   border-radius: 6px;
 }
 
+.selection-count {
+  display: inline-flex;
+  align-items: center;
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #7dd3fc;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .entry-table-wrapper {
   flex: 0 0 auto;
   min-height: 80px;
   max-height: 220px;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
 }
@@ -512,7 +530,7 @@ body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
 }
@@ -754,7 +772,7 @@ body.pricing-view-active .panel-heading h2 {
 
 body.pricing-view-active .table-wrapper {
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
 }
@@ -774,22 +792,27 @@ body.pricing-view-active .pricing-data-actions {
 }
 
 body.pricing-view-active .pricing-data-table {
-  table-layout: fixed;
+  table-layout: auto;
   width: 100%;
-  min-width: 0;
+  min-width: 900px;
 }
 
 body.pricing-view-active .pricing-data-table select,
 body.pricing-view-active .pricing-data-table input {
   width: 100%;
-  min-width: 0;
+  min-width: 80px;
   padding: 8px 10px;
   font-size: 0.9rem;
 }
 
 body.pricing-view-active .pricing-data-table td {
-  min-width: 0;
   white-space: nowrap;
+}
+
+body.pricing-view-active .pricing-data-table .entry-actions {
+  white-space: nowrap;
+  width: 1%;
+  padding: 6px 8px;
 }
 
 body.pricing-view-active .master-data-form-grid {
