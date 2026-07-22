@@ -43,6 +43,8 @@ let pricingDataRows = getStoredValue("pricingDataRows", []);
 let savedPricingRecords = getStoredValue("savedPricingRecords", []);
 let completedPricingRecords = getStoredValue("completedPricingRecords", []);
 let aprCounter = getStoredValue("aprCounter", 0);
+let deletionAuditLog = getStoredValue("deletionAuditLog", []);
+let isAdminAuthenticated = false;
 let pricingDataValidationMessage = "";
 let editingEntryId = null;
 let editingPricingHeadingId = null;
@@ -527,12 +529,13 @@ function buildSavedRowHtml(row, index) {
   const isEditing = row.id === editingSavedRowId;
   const isChecked = selectedSavedRowIds.has(row.id);
   const aprCell = `<td class="apr-no-cell">${escapeHtml(row.aprNumber || "")}</td>`;
-  const slCell = `<td class="sl-no-cell"><input type="checkbox" class="saved-row-checkbox" data-row-id="${row.id}" ${isChecked ? "checked" : ""} /><span>${index + 1}</span></td>`;
+  const slCell = `<td class="sl-no-cell"><input type="checkbox" class="saved-row-checkbox" data-row-id="${row.id}" ${isChecked ? "checked" : ""} /></td>`;
   if (isEditing) {
     return `
       <tr>
-        ${aprCell}
         ${slCell}
+        ${aprCell}
+        <td class="sl-no-cell"><span>${index + 1}</span></td>
         <td><select class="saved-division-select" data-row-id="${row.id}"><option value="">Select division</option><option value="FERTILIZER" ${row.division === "FERTILIZER" ? "selected" : ""}>FERTILIZER</option><option value="IPD" ${row.division === "IPD" ? "selected" : ""}>IPD</option><option value="TIE-UP" ${row.division === "TIE-UP" ? "selected" : ""}>TIE-UP</option></select></td>
         <td><select class="saved-state-select" data-row-id="${row.id}"><option value="">Select state</option>${stateNameEntries.map((e) => `<option value="${e.id}" ${e.id === row.stateId ? "selected" : ""}>${escapeHtml(e.name)}</option>`).join("")}</select></td>
         <td><select class="saved-financial-year-select" data-row-id="${row.id}"><option value="">Select financial year</option>${financialYearEntries.map((e) => `<option value="${e.id}" ${e.id === row.financialYearId ? "selected" : ""}>${escapeHtml(e.year)}</option>`).join("")}</select></td>
@@ -551,8 +554,9 @@ function buildSavedRowHtml(row, index) {
   }
   return `
     <tr>
-      ${aprCell}
       ${slCell}
+      ${aprCell}
+      <td class="sl-no-cell"><span>${index + 1}</span></td>
       <td>${escapeHtml(row.division || "")}</td>
       <td>${escapeHtml(stateNameEntries.find((e) => e.id === row.stateId)?.name || "")}</td>
       <td>${escapeHtml(financialYearEntries.find((e) => e.id === row.financialYearId)?.year || "")}</td>
@@ -669,6 +673,7 @@ function persistPricingDataState() {
   setStoredValue("savedPricingRecords", savedPricingRecords);
   setStoredValue("completedPricingRecords", completedPricingRecords);
   setStoredValue("aprCounter", aprCounter);
+  setStoredValue("deletionAuditLog", deletionAuditLog);
 }
 
 function validatePricingDataRows() {
@@ -763,12 +768,11 @@ function handleSavePricingDataRows() {
     return;
   }
 
+  aprCounter += 1;
+  const batchAprNumber = `APR-${aprCounter}`;
   savedPricingRecords = [
     ...savedPricingRecords,
-    ...pricingDataRows.map((row) => {
-      aprCounter += 1;
-      return { ...row, aprNumber: `APR-${aprCounter}` };
-    }),
+    ...pricingDataRows.map((row) => ({ ...row, aprNumber: batchAprNumber })),
   ];
   pricingDataRows = [createPricingDataRow()];
   pricingDataValidationMessage = "Row saved successfully.";
@@ -843,15 +847,17 @@ function handleDeleteCompletedPricingRecord(recordId) {
 }
 
 function renderReportsPanel() {
+  const adminBtnLabel = isAdminAuthenticated ? "Admin Mode: ON" : "Admin Login";
   masterDataPanel.innerHTML = `
     <div class="master-data-card pricing-data-card">
       <div class="panel-heading">
         <h2>REPORTS</h2>
-        <p>Completed pricing records are displayed here from the completed records table.</p>
+        <p>Completed pricing records are displayed here. Records are read-only.</p>
       </div>
-
-      ${reportsValidationMessage ? `<div class="validation-message">${escapeHtml(reportsValidationMessage)}</div>` : ""}
-
+      <div class="table-actions" style="margin-bottom:8px;flex-shrink:0;">
+        <button type="button" class="${isAdminAuthenticated ? "complete-btn" : "secondary-btn"}" id="adminLoginBtn">${adminBtnLabel}</button>
+        ${isAdminAuthenticated ? '<button type="button" class="secondary-btn" id="adminLogoutBtn">Logout Admin</button>' : ""}
+      </div>
       <div class="table-wrapper">
         <table class="master-data-table pricing-data-table">
           <thead>
@@ -869,86 +875,30 @@ function renderReportsPanel() {
               <th>Completed On</th>
               <th>Status</th>
               <th>Completed ID</th>
-              <th>Actions</th>
+              ${isAdminAuthenticated ? "<th>Actions</th>" : ""}
             </tr>
           </thead>
           <tbody>
             ${completedPricingRecords.length
-              ? completedPricingRecords.map((row, index) => {
-                  const isEditing = row.id === editingReportRecordId;
-                  if (isEditing) {
-                    return `
-                      <tr>
-                        <td>${index + 1}</td>
-                        <td>
-                          <select class="report-division-select" data-row-id="${row.id}">
-                            <option value="">Select division</option>
-                            <option value="FERTILIZER" ${row.division === "FERTILIZER" ? "selected" : ""}>FERTILIZER</option>
-                            <option value="IPD" ${row.division === "IPD" ? "selected" : ""}>IPD</option>
-                            <option value="TIE-UP" ${row.division === "TIE-UP" ? "selected" : ""}>TIE-UP</option>
-                          </select>
-                        </td>
-                        <td>
-                          <select class="report-state-select" data-row-id="${row.id}">
-                            <option value="">Select state</option>
-                            ${stateNameEntries.map((e) => `<option value="${e.id}" ${e.id === row.stateId ? "selected" : ""}>${escapeHtml(e.name)}</option>`).join("")}
-                          </select>
-                        </td>
-                        <td>
-                          <select class="report-financial-year-select" data-row-id="${row.id}">
-                            <option value="">Select financial year</option>
-                            ${financialYearEntries.map((e) => `<option value="${e.id}" ${e.id === row.financialYearId ? "selected" : ""}>${escapeHtml(e.year)}</option>`).join("")}
-                          </select>
-                        </td>
-                        <td><input type="text" class="report-period-input" data-row-id="${row.id}" value="${escapeHtml(row.period)}" placeholder="Period" /></td>
-                        <td><input type="text" class="report-quantity-input" data-row-id="${row.id}" value="${escapeHtml(row.quantity)}" placeholder="Quantity" /></td>
-                        <td>
-                          <select class="report-material-select" data-row-id="${row.id}">
-                            <option value="">Select material</option>
-                            ${masterDataEntries.map((e) => `<option value="${e.id}" ${e.id === row.materialId ? "selected" : ""}>${escapeHtml(e.description)}</option>`).join("")}
-                          </select>
-                        </td>
-                        <td>
-                          <select class="report-heading-select" data-row-id="${row.id}">
-                            <option value="">Select pricing heading</option>
-                            ${pricingHeadingEntries.map((e) => `<option value="${e.id}" ${e.id === row.pricingHeadingId ? "selected" : ""}>${escapeHtml(e.description)}</option>`).join("")}
-                          </select>
-                        </td>
-                        <td><input type="text" class="report-value-input" data-row-id="${row.id}" value="${escapeHtml(row.value)}" placeholder="Value" /></td>
-                        <td><input type="text" class="report-remarks-input" data-row-id="${row.id}" value="${escapeHtml(row.remarks)}" placeholder="Remarks" /></td>
-                        <td>${escapeHtml(row.completedAt || "")}</td>
-                        <td>${escapeHtml(row.status || "Completed")}</td>
-                        <td>${escapeHtml(row.completedId || row.id)}</td>
-                        <td class="entry-actions">
-                          <button type="button" class="add-row-btn" data-action="save-report-record" data-id="${row.id}">Save</button>
-                          <button type="button" class="secondary-btn" data-action="cancel-report-edit">Cancel</button>
-                        </td>
-                      </tr>
-                    `;
-                  }
-                  return `
-                    <tr>
-                      <td>${index + 1}</td>
-                      <td>${escapeHtml(row.division || "")}</td>
-                      <td>${escapeHtml(stateNameEntries.find((e) => e.id === row.stateId)?.name || "")}</td>
-                      <td>${escapeHtml(financialYearEntries.find((e) => e.id === row.financialYearId)?.year || "")}</td>
-                      <td>${escapeHtml(row.period || "")}</td>
-                      <td>${escapeHtml(row.quantity || "")}</td>
-                      <td>${escapeHtml(masterDataEntries.find((e) => e.id === row.materialId)?.description || "")}</td>
-                      <td>${escapeHtml(pricingHeadingEntries.find((e) => e.id === row.pricingHeadingId)?.description || "")}</td>
-                      <td>${escapeHtml(row.value || "")}</td>
-                      <td>${escapeHtml(row.remarks || "")}</td>
-                      <td>${escapeHtml(row.completedAt || "")}</td>
-                      <td>${escapeHtml(row.status || "Completed")}</td>
-                      <td>${escapeHtml(row.completedId || row.id)}</td>
-                      <td class="entry-actions">
-                        <button type="button" class="edit-btn" data-action="edit-completed-pricing-record" data-id="${row.id}">Edit</button>
-                        <button type="button" class="delete-btn" data-action="delete-completed-pricing-record" data-id="${row.id}">Delete</button>
-                      </td>
-                    </tr>
-                  `;
-                }).join("")
-              : '<tr><td colspan="14" class="empty-state">No completed records available yet.</td></tr>'}
+              ? completedPricingRecords.map((row, index) => `
+                  <tr>
+                    <td>${index + 1}</td>
+                    <td>${escapeHtml(row.division || "")}</td>
+                    <td>${escapeHtml(stateNameEntries.find((e) => e.id === row.stateId)?.name || "")}</td>
+                    <td>${escapeHtml(financialYearEntries.find((e) => e.id === row.financialYearId)?.year || "")}</td>
+                    <td>${escapeHtml(row.period || "")}</td>
+                    <td>${escapeHtml(row.quantity || "")}</td>
+                    <td>${escapeHtml(masterDataEntries.find((e) => e.id === row.materialId)?.description || "")}</td>
+                    <td>${escapeHtml(pricingHeadingEntries.find((e) => e.id === row.pricingHeadingId)?.description || "")}</td>
+                    <td>${escapeHtml(row.value || "")}</td>
+                    <td>${escapeHtml(row.remarks || "")}</td>
+                    <td>${escapeHtml(row.completedAt || "")}</td>
+                    <td>${escapeHtml(row.status || "Completed")}</td>
+                    <td>${escapeHtml(row.completedId || row.id)}</td>
+                    ${isAdminAuthenticated ? `<td class="entry-actions"><button type="button" class="delete-btn" data-action="admin-delete-report" data-id="${row.id}">Delete</button></td>` : ""}
+                  </tr>
+                `).join("")
+              : `<tr><td colspan="${isAdminAuthenticated ? 14 : 13}" class="empty-state">No completed records available yet.</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -956,24 +906,38 @@ function renderReportsPanel() {
   `;
 }
 
-function updateReportRecord(recordId, field, value) {
-  const record = completedPricingRecords.find((r) => r.id === recordId);
-  if (!record) return;
-  record[field] = value;
+function handleAdminLogin() {
+  const pin = window.prompt("Enter Administrator PIN:");
+  if (pin === null) return;
+  if (pin === "ADMIN123") {
+    isAdminAuthenticated = true;
+    renderReportsPanel();
+  } else {
+    window.alert("Incorrect PIN. Access denied.");
+  }
 }
 
-function handleSaveReportRecord(recordId) {
+function handleAdminDeleteReport(recordId) {
   const record = completedPricingRecords.find((r) => r.id === recordId);
   if (!record) return;
-
-  if (!record.division || !record.stateId || !record.financialYearId || !record.period.trim() || !record.quantity.trim() || !record.materialId || !record.pricingHeadingId || !record.value.trim()) {
-    reportsValidationMessage = "Please complete all fields before saving.";
-    renderReportsPanel();
+  const confirmed = window.confirm(
+    `ADMINISTRATOR ACTION\n\nYou are about to permanently delete record:\nCompleted ID: ${record.completedId || recordId}\nAPR No.: ${record.aprNumber || "-"}\n\nThis action cannot be undone and will be logged. Proceed?`
+  );
+  if (!confirmed) return;
+  const reason = window.prompt("Enter reason for deletion (required):");
+  if (!reason || !reason.trim()) {
+    window.alert("Deletion cancelled: a reason is required.");
     return;
   }
-
-  editingReportRecordId = null;
-  reportsValidationMessage = "Record updated successfully.";
+  deletionAuditLog.push({
+    userId: "ADMIN",
+    dateTime: new Date().toLocaleString(),
+    recordId: recordId,
+    completedId: record.completedId || recordId,
+    aprNumber: record.aprNumber || "-",
+    reason: reason.trim(),
+  });
+  completedPricingRecords = completedPricingRecords.filter((r) => r.id !== recordId);
   persistPricingDataState();
   renderReportsPanel();
 }
@@ -1295,19 +1259,13 @@ masterDataPanel.addEventListener("click", (event) => {
     renderPricingDataTable();
   } else if (target.matches("[data-action='delete-pricing-data-row']")) {
     handleDeletePricingDataRow(target.dataset.id);
-  } else if (target.matches("[data-action='edit-completed-pricing-record']")) {
-    editingReportRecordId = target.dataset.id;
-    reportsValidationMessage = "";
+  } else if (target.id === "adminLoginBtn") {
+    handleAdminLogin();
+  } else if (target.id === "adminLogoutBtn") {
+    isAdminAuthenticated = false;
     renderReportsPanel();
-  } else if (target.matches("[data-action='save-report-record']")) {
-    handleSaveReportRecord(target.dataset.id);
-  } else if (target.matches("[data-action='cancel-report-edit']")) {
-    editingReportRecordId = null;
-    reportsValidationMessage = "";
-    renderReportsPanel();
-  } else if (target.matches("[data-action='delete-completed-pricing-record']")) {
-    handleDeleteCompletedPricingRecord(target.dataset.id);
-    renderReportsPanel();
+  } else if (target.matches("[data-action='admin-delete-report']")) {
+    handleAdminDeleteReport(target.dataset.id);
   }
 });
 
