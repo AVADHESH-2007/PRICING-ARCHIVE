@@ -57,6 +57,8 @@ let reportsValidationMessage = "";
 let selectedSavedRowIds = new Set();
 let editingSavedRowId = null;
 let savedRecordFilters = {};
+let reportRecordFilters = {};
+let activeReportFilterCol = null;
 
 function escapeHtml(value) {
   return String(value)
@@ -488,6 +490,7 @@ function closeFilterPopup() {
   const existing = document.getElementById("filterPopup");
   if (existing) existing.remove();
   activeFilterCol = null;
+  activeReportFilterCol = null;
 }
 
 function syncSelectionToFilteredRecords() {
@@ -521,6 +524,156 @@ function clearColumnFilter(colKey) {
   closeFilterPopup();
   syncSelectionToFilteredRecords();
   renderPricingDataTable();
+}
+
+// ── Report filter helpers ─────────────────────────────────────────────────────
+
+const REPORT_COLS = [
+  { key: "aprNumber",     label: "APR No.",              type: "text" },
+  { key: "slNo",          label: "Sl. No.",              type: "text" },
+  { key: "division",      label: "Division",             type: "dropdown" },
+  { key: "state",         label: "State",                type: "text" },
+  { key: "financialYear", label: "Financial Year",       type: "text" },
+  { key: "period",        label: "Period",               type: "text" },
+  { key: "quantity",      label: "Quantity",             type: "text" },
+  { key: "material",      label: "Material Description", type: "text" },
+  { key: "pricingHeading",label: "Pricing Heading",      type: "text" },
+  { key: "value",         label: "Value / Amount / Text",type: "text" },
+  { key: "remarks",       label: "Remarks",              type: "text" },
+  { key: "completedAt",   label: "Completed On",         type: "text" },
+  { key: "status",        label: "Status",               type: "text" },
+  { key: "completedId",   label: "Completed ID",         type: "text" },
+];
+
+function getReportRowDisplayValues(row, index) {
+  return {
+    aprNumber:     row.aprNumber || "",
+    slNo:          String(index + 1),
+    division:      row.division || "",
+    state:         stateNameEntries.find((e) => e.id === row.stateId)?.name || "",
+    financialYear: financialYearEntries.find((e) => e.id === row.financialYearId)?.year || "",
+    period:        row.period || "",
+    quantity:      row.quantity || "",
+    material:      masterDataEntries.find((e) => e.id === row.materialId)?.description || "",
+    pricingHeading:pricingHeadingEntries.find((e) => e.id === row.pricingHeadingId)?.description || "",
+    value:         row.value || "",
+    remarks:       row.remarks || "",
+    completedAt:   row.completedAt || "",
+    status:        row.status || "Completed",
+    completedId:   row.completedId || row.id,
+  };
+}
+
+function applyReportFilter(cell, f) {
+  const v1 = (f.value || "").toLowerCase();
+  const v2 = (f.value2 || "").toLowerCase();
+  switch (f.operator) {
+    case "contains":   return cell.includes(v1);
+    case "equals":     return cell === v1;
+    case "startsWith": return cell.startsWith(v1);
+    case "endsWith":   return cell.endsWith(v1);
+    case "gt":         return parseFloat(cell) > parseFloat(v1);
+    case "lt":         return parseFloat(cell) < parseFloat(v1);
+    case "between":    return parseFloat(cell) >= parseFloat(v1) && parseFloat(cell) <= parseFloat(v2);
+    case "multiSelect": return !f.selected || f.selected.length === 0 || f.selected.includes(cell);
+    default:           return true;
+  }
+}
+
+function getFilteredReportRecords() {
+  const activeFilters = Object.entries(reportRecordFilters).filter(([, f]) => f && f.active);
+  if (!activeFilters.length) return completedPricingRecords;
+  return completedPricingRecords.filter((row, index) => {
+    const vals = getReportRowDisplayValues(row, index);
+    return activeFilters.every(([key, f]) => {
+      const cell = (vals[key] || "").toLowerCase();
+      const rawCell = vals[key] || "";
+      if (f.operator === "multiSelect") {
+        return !f.selected || f.selected.length === 0 || f.selected.includes(rawCell);
+      }
+      return applyReportFilter(cell, f);
+    });
+  });
+}
+
+function openReportFilterPopup(colKey, anchorEl) {
+  closeFilterPopup();
+  activeReportFilterCol = colKey;
+  const col = REPORT_COLS.find((c) => c.key === colKey);
+  const existing = reportRecordFilters[colKey] || {};
+  const rect = anchorEl.getBoundingClientRect();
+
+  const popup = document.createElement("div");
+  popup.id = "filterPopup";
+  popup.className = "filter-popup";
+
+  let inner = "";
+  if (col.type === "dropdown") {
+    const allVals = [...new Set(completedPricingRecords.map((r) => r[colKey] || "").filter(Boolean))];
+    const selected = existing.selected || allVals;
+    inner = `
+      <div class="filter-popup-title">Filter: ${col.label}</div>
+      <div class="filter-multiselect">
+        <label><input type="checkbox" id="fpSelectAll" ${selected.length === allVals.length ? "checked" : ""}> Select All</label>
+        ${allVals.map((v) => `<label><input type="checkbox" class="fp-val-cb" value="${escapeHtml(v)}" ${selected.includes(v) ? "checked" : ""}> ${escapeHtml(v)}</label>`).join("")}
+      </div>
+      <div class="filter-popup-actions">
+        <button type="button" class="add-row-btn" id="fpApply">Apply</button>
+        <button type="button" class="secondary-btn" id="fpClear">Clear</button>
+        <button type="button" class="secondary-btn" id="fpClose">Cancel</button>
+      </div>`;
+  } else {
+    const ops = [["contains","Contains"],["equals","Equals"],["startsWith","Starts With"],["endsWith","Ends With"]];
+    const curOp = existing.operator || "contains";
+    inner = `
+      <div class="filter-popup-title">Filter: ${col.label}</div>
+      <select id="fpOperator">${ops.map(([v, l]) => `<option value="${v}" ${curOp === v ? "selected" : ""}>${l}</option>`).join("")}</select>
+      <input type="text" id="fpValue" placeholder="Value" value="${escapeHtml(existing.value || "")}" />
+      <input type="text" id="fpValue2" placeholder="To (for Between)" value="${escapeHtml(existing.value2 || "")}" style="display:none" />
+      <div class="filter-popup-actions">
+        <button type="button" class="add-row-btn" id="fpApply">Apply</button>
+        <button type="button" class="secondary-btn" id="fpClear">Clear</button>
+        <button type="button" class="secondary-btn" id="fpClose">Cancel</button>
+      </div>`;
+  }
+
+  popup.innerHTML = inner;
+  document.body.appendChild(popup);
+  const top = rect.bottom + window.scrollY + 4;
+  const left = Math.min(rect.left + window.scrollX, window.innerWidth - 260);
+  popup.style.top = top + "px";
+  popup.style.left = left + "px";
+
+  const selectAll = popup.querySelector("#fpSelectAll");
+  if (selectAll) {
+    selectAll.addEventListener("change", () => {
+      popup.querySelectorAll(".fp-val-cb").forEach((cb) => { cb.checked = selectAll.checked; });
+    });
+  }
+}
+
+function applyReportFilterFromPopup() {
+  const popup = document.getElementById("filterPopup");
+  if (!popup || !activeReportFilterCol) return;
+  const col = REPORT_COLS.find((c) => c.key === activeReportFilterCol);
+  if (col.type === "dropdown") {
+    const selected = [...popup.querySelectorAll(".fp-val-cb:checked")].map((cb) => cb.value);
+    reportRecordFilters[activeReportFilterCol] = { active: selected.length > 0, operator: "multiSelect", selected };
+  } else {
+    const operator = popup.querySelector("#fpOperator")?.value || "contains";
+    const value = popup.querySelector("#fpValue")?.value.trim() || "";
+    reportRecordFilters[activeReportFilterCol] = { active: !!value, operator, value, value2: "" };
+  }
+  activeReportFilterCol = null;
+  closeFilterPopup();
+  renderReportsPanel();
+}
+
+function clearReportColumnFilter(colKey) {
+  delete reportRecordFilters[colKey];
+  activeReportFilterCol = null;
+  closeFilterPopup();
+  renderReportsPanel();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -848,6 +1001,18 @@ function handleDeleteCompletedPricingRecord(recordId) {
 
 function renderReportsPanel() {
   const adminBtnLabel = isAdminAuthenticated ? "Admin Mode: ON" : "Admin Login";
+  const filteredReports = getFilteredReportRecords();
+  const hasActiveFilters = Object.values(reportRecordFilters).some((f) => f?.active);
+  const colCount = isAdminAuthenticated ? 15 : 14;
+
+  const headerCells = REPORT_COLS.map((col) => {
+    const isActive = reportRecordFilters[col.key]?.active;
+    return `<th class="${isActive ? "col-filter-active" : ""}">
+      <span class="th-label">${col.label}</span>
+      <button type="button" class="report-filter-btn" data-report-filter-col="${col.key}" title="Filter ${col.label}">&#9660;</button>
+    </th>`;
+  }).join("");
+
   masterDataPanel.innerHTML = `
     <div class="master-data-card pricing-data-card">
       <div class="panel-heading">
@@ -857,31 +1022,21 @@ function renderReportsPanel() {
       <div class="table-actions" style="margin-bottom:8px;flex-shrink:0;">
         <button type="button" class="${isAdminAuthenticated ? "complete-btn" : "secondary-btn"}" id="adminLoginBtn">${adminBtnLabel}</button>
         ${isAdminAuthenticated ? '<button type="button" class="secondary-btn" id="adminLogoutBtn">Logout Admin</button>' : ""}
+        ${hasActiveFilters ? '<button type="button" class="secondary-btn" id="clearAllReportFiltersBtn">Clear All Filters</button>' : ""}
       </div>
-      <div class="table-wrapper">
+      <div class="table-wrapper saved-table-wrapper">
         <table class="master-data-table pricing-data-table">
           <thead>
             <tr>
-              <th>Sl. No.</th>
-              <th>Division</th>
-              <th>State</th>
-              <th>Financial Year</th>
-              <th>Period</th>
-              <th>Quantity</th>
-              <th>Material Description</th>
-              <th>Pricing Heading</th>
-              <th>Value / Amount / Text</th>
-              <th>Remarks</th>
-              <th>Completed On</th>
-              <th>Status</th>
-              <th>Completed ID</th>
+              ${headerCells}
               ${isAdminAuthenticated ? "<th>Actions</th>" : ""}
             </tr>
           </thead>
           <tbody>
-            ${completedPricingRecords.length
-              ? completedPricingRecords.map((row, index) => `
+            ${filteredReports.length
+              ? filteredReports.map((row, index) => `
                   <tr>
+                    <td class="apr-no-cell">${escapeHtml(row.aprNumber || "")}</td>
                     <td>${index + 1}</td>
                     <td>${escapeHtml(row.division || "")}</td>
                     <td>${escapeHtml(stateNameEntries.find((e) => e.id === row.stateId)?.name || "")}</td>
@@ -898,7 +1053,7 @@ function renderReportsPanel() {
                     ${isAdminAuthenticated ? `<td class="entry-actions"><button type="button" class="delete-btn" data-action="admin-delete-report" data-id="${row.id}">Delete</button></td>` : ""}
                   </tr>
                 `).join("")
-              : `<tr><td colspan="${isAdminAuthenticated ? 14 : 13}" class="empty-state">No completed records available yet.</td></tr>`}
+              : `<tr><td colspan="${colCount}" class="empty-state">${completedPricingRecords.length ? "No records match the current filters." : "No completed records available yet."}</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -1259,6 +1414,11 @@ masterDataPanel.addEventListener("click", (event) => {
     renderPricingDataTable();
   } else if (target.matches("[data-action='delete-pricing-data-row']")) {
     handleDeletePricingDataRow(target.dataset.id);
+  } else if (target.id === "clearAllReportFiltersBtn") {
+    reportRecordFilters = {};
+    renderReportsPanel();
+  } else if (target.classList.contains("report-filter-btn")) {
+    openReportFilterPopup(target.dataset.reportFilterCol, target);
   } else if (target.id === "adminLoginBtn") {
     handleAdminLogin();
   } else if (target.id === "adminLogoutBtn") {
@@ -1355,12 +1515,22 @@ document.addEventListener("click", (event) => {
   if (!popup) return;
   const target = event.target;
   if (target.id === "fpApply") {
-    applyFilterFromPopup();
+    if (activeReportFilterCol) {
+      applyReportFilterFromPopup();
+    } else {
+      applyFilterFromPopup();
+    }
   } else if (target.id === "fpClear") {
-    clearColumnFilter(activeFilterCol);
+    if (activeReportFilterCol) {
+      clearReportColumnFilter(activeReportFilterCol);
+    } else {
+      clearColumnFilter(activeFilterCol);
+    }
   } else if (target.id === "fpClose") {
+    activeReportFilterCol = null;
     closeFilterPopup();
-  } else if (!popup.contains(target) && !target.classList.contains("col-filter-btn")) {
+  } else if (!popup.contains(target) && !target.classList.contains("col-filter-btn") && !target.classList.contains("report-filter-btn")) {
+    activeReportFilterCol = null;
     closeFilterPopup();
   }
 });
