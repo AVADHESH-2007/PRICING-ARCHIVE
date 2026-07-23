@@ -16,6 +16,7 @@ const pricingHeaders = [
 const masterDataButton = document.getElementById("masterDataBtn");
 const pricingDataButton = document.getElementById("pricingDataBtn");
 const reportsButton = document.getElementById("reportsBtn");
+const misButton = document.getElementById("misBtn");
 const masterDataPanel = document.getElementById("masterDataPanel");
 
 function getStoredValue(key, fallback) {
@@ -59,6 +60,16 @@ let editingSavedRowId = null;
 let savedRecordFilters = {};
 let reportRecordFilters = {};
 let activeReportFilterCol = null;
+let misState = {
+  filters: {},
+  reportType: "division",
+  pivotDimension: "division",
+  pivotMetric: "sumValue",
+  sortKey: "value",
+  sortDir: "desc",
+  page: 1,
+  drill: null,
+};
 
 function escapeHtml(value) {
   return String(value)
@@ -1061,6 +1072,211 @@ function renderReportsPanel() {
   `;
 }
 
+function renderMisPanel() {
+  const records = getMisRecords();
+  const summary = getMisSummary(records);
+  const report = getMisReport(records);
+  const pageSize = 10;
+  const sortedReportRows = sortMisRows(report.rows);
+  const pageCount = Math.max(1, Math.ceil(sortedReportRows.length / pageSize));
+  misState.page = Math.min(misState.page, pageCount);
+  const pageRows = sortedReportRows.slice((misState.page - 1) * pageSize, misState.page * pageSize);
+
+  masterDataPanel.innerHTML = `
+    <div class="master-data-card pricing-data-card mis-dashboard">
+      <div class="panel-heading">
+        <h2>MIS</h2>
+        <p>Read-only management dashboard based only on finalized Report records.</p>
+      </div>
+      <div class="mis-filter-panel">
+        <div class="mis-filter-title"><strong>Report Filters</strong><span>${records.length} of ${completedPricingRecords.length} completed records</span></div>
+        <div class="mis-filter-grid">${buildMisFilters()}</div>
+        <div class="table-actions mis-actions">
+          <button type="button" class="add-row-btn" id="misApplyFiltersBtn">Apply Filters</button>
+          <button type="button" class="secondary-btn" id="misClearFiltersBtn">Clear Filters</button>
+          <input id="misGlobalSearch" class="mis-global-search" type="search" placeholder="Search all displayed fields" value="${escapeHtml(misState.filters.global || "")}" />
+          <button type="button" class="secondary-btn" id="misExportCsvBtn">Export CSV</button>
+          <button type="button" class="secondary-btn" id="misExportExcelBtn">Export Excel</button>
+          <button type="button" class="secondary-btn" id="misPrintBtn">Print / Save PDF</button>
+        </div>
+      </div>
+      <div class="mis-kpis">${buildMisKpis(summary)}</div>
+      <div class="mis-chart-grid">${buildMisChart("Division-wise Value", getMisGroupedRows(records, "division").slice(0, 6))}${buildMisChart("State-wise Quantity", getMisGroupedRows(records, "state").slice(0, 6), "quantity")}</div>
+      <div class="mis-report-toolbar">
+        <label>Analysis <select id="misReportType">${[
+          ["period", "Period Comparison"], ["division", "Division-wise Comparison"], ["state", "State-wise Comparison"],
+          ["material", "Material-wise Comparison"], ["heading", "Pricing Heading Analysis"], ["apr", "APR-wise Analysis"], ["pivot", "Pivot Analysis"],
+        ].map(([value, label]) => `<option value="${value}" ${misState.reportType === value ? "selected" : ""}>${label}</option>`).join("")}</select></label>
+        ${misState.reportType === "pivot" ? `<label>Dimension <select id="misPivotDimension">${buildMisDimensionOptions(misState.pivotDimension)}</select></label><label>Summary <select id="misPivotMetric">${buildMisMetricOptions(misState.pivotMetric)}</select></label>` : ""}
+      </div>
+      <div class="table-wrapper mis-table-wrapper">
+        ${buildMisTable(report, pageRows)}
+      </div>
+      <div class="mis-pagination"><button type="button" class="secondary-btn" data-mis-page="prev" ${misState.page === 1 ? "disabled" : ""}>Previous</button><span>Page ${misState.page} of ${pageCount} · ${report.rows.length} groups</span><button type="button" class="secondary-btn" data-mis-page="next" ${misState.page === pageCount ? "disabled" : ""}>Next</button></div>
+      ${buildMisDrillDown(records)}
+      <p class="mis-note">Scheduling and email distribution are reserved for a future server-side enhancement. MIS data is read-only; completed records cannot be edited here.</p>
+    </div>
+  `;
+}
+
+const MIS_DIMENSIONS = [
+  ["financialYear", "Financial Year"], ["period", "Period"], ["division", "Division"], ["state", "State"],
+  ["material", "Material Description"], ["pricingHeading", "Pricing Heading"], ["aprNumber", "APR No."],
+];
+
+function getMisRecordValues(row, index) {
+  const values = getReportRowDisplayValues(row, index);
+  return { ...values, quantityNumber: misNumber(values.quantity), valueNumber: misNumber(values.value), id: row.id };
+}
+
+function misNumber(value) {
+  const number = Number(String(value ?? "").replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(number) ? number : 0;
+}
+
+function misDateValue(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+}
+
+function getMisRecords() {
+  const seen = new Set();
+  const global = (misState.filters.global || "").trim().toLowerCase();
+  const dateFrom = misState.filters.dateFrom || "";
+  const dateTo = misState.filters.dateTo || "";
+  return completedPricingRecords.map(getMisRecordValues).filter((record) => {
+    if (seen.has(record.id)) return false;
+    seen.add(record.id);
+    const included = MIS_DIMENSIONS.every(([key]) => {
+      const selected = misState.filters[key] || [];
+      return !selected.length || selected.includes(record[key]);
+    });
+    if (!included) return false;
+    const date = misDateValue(record.completedAt);
+    if (dateFrom && date && date < new Date(`${dateFrom}T00:00:00`).getTime()) return false;
+    if (dateTo && date && date > new Date(`${dateTo}T23:59:59`).getTime()) return false;
+    return !global || Object.values(record).join(" ").toLowerCase().includes(global);
+  });
+}
+
+function buildMisFilters() {
+  return MIS_DIMENSIONS.map(([key, label]) => {
+    const values = [...new Set(completedPricingRecords.map(getMisRecordValues).map((record) => record[key]).filter(Boolean))].sort();
+    const selected = misState.filters[key] || [];
+    return `<div class="mis-filter"><label>${label}</label><input type="search" class="mis-filter-search" data-mis-search-for="${key}" placeholder="Search ${label}" /><select class="mis-filter-select" data-mis-filter="${key}" multiple size="3">${values.map((value) => `<option value="${escapeHtml(value)}" ${selected.includes(value) ? "selected" : ""}>${escapeHtml(value)}</option>`).join("")}</select><div><button type="button" class="mis-link-btn" data-mis-select-all="${key}">All</button><button type="button" class="mis-link-btn" data-mis-select-none="${key}">None</button></div></div>`;
+  }).join("") + `<div class="mis-filter mis-date-filter"><label>Completed Date Range</label><input id="misDateFrom" type="date" value="${escapeHtml(misState.filters.dateFrom || "")}" /><input id="misDateTo" type="date" value="${escapeHtml(misState.filters.dateTo || "")}" /></div>`;
+}
+
+function getMisSummary(records) {
+  const unique = (key) => new Set(records.map((record) => record[key]).filter(Boolean)).size;
+  const totalValue = records.reduce((sum, record) => sum + record.valueNumber, 0);
+  return { aprs: unique("aprNumber"), quantity: records.reduce((sum, record) => sum + record.quantityNumber, 0), value: totalValue, divisions: unique("division"), states: unique("state"), materials: unique("material"), headings: unique("pricingHeading"), average: unique("aprNumber") ? totalValue / unique("aprNumber") : 0, latest: records.reduce((latest, record) => misDateValue(record.completedAt) > misDateValue(latest) ? record.completedAt : latest, "") };
+}
+
+function misFormat(value) { return Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
+
+function buildMisKpis(summary) {
+  const cards = [["Total APRs", summary.aprs], ["Total Quantity", misFormat(summary.quantity)], ["Total Value", misFormat(summary.value)], ["Divisions", summary.divisions], ["States", summary.states], ["Materials", summary.materials], ["Pricing Headings", summary.headings], ["Avg. Value / APR", misFormat(summary.average)], ["Latest Completed", summary.latest || "—"]];
+  return cards.map(([label, value]) => `<div class="mis-kpi"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`).join("");
+}
+
+function getMisGroupedRows(records, dimension) {
+  const groups = new Map();
+  records.forEach((record) => {
+    const key = record[dimension] || "Not specified";
+    const group = groups.get(key) || { key, count: 0, quantity: 0, value: 0, records: [] };
+    group.count += 1; group.quantity += record.quantityNumber; group.value += record.valueNumber; group.records.push(record); groups.set(key, group);
+  });
+  return [...groups.values()].map((group) => ({ ...group, average: group.count ? group.value / group.count : 0 })).sort((a, b) => b.value - a.value);
+}
+
+function buildMisChart(title, rows, metric = "value") {
+  const max = Math.max(...rows.map((row) => row[metric]), 1);
+  return `<section class="mis-chart"><h3>${title}</h3>${rows.length ? rows.map((row) => `<div class="mis-bar-row"><span title="${escapeHtml(row.key)}">${escapeHtml(row.key)}</span><div class="mis-bar-track"><i style="width:${Math.max(3, (row[metric] / max) * 100)}%"></i></div><b>${misFormat(row[metric])}</b></div>`).join("") : `<p class="empty-state">No Data Found</p>`}</section>`;
+}
+
+function getMisReport(records) {
+  const configs = {
+    division: { dimension: "division", title: "Division", extras: ["Quantity", "Value", "Average Value"] },
+    state: { dimension: "state", title: "State", extras: ["Quantity", "Value", "% Contribution", "Growth %"] },
+    material: { dimension: "material", title: "Material Description", extras: ["Line Items", "Quantity", "Value"] },
+    heading: { dimension: "pricingHeading", title: "Pricing Heading", extras: ["Total Amount", "Average", "Maximum", "Minimum", "Trend"] },
+    apr: { dimension: "aprNumber", title: "APR No.", extras: ["Line Items", "Quantity", "Total Value", "Completion Date", "Status", "Remarks"] },
+    pivot: { dimension: misState.pivotDimension, title: MIS_DIMENSIONS.find(([key]) => key === misState.pivotDimension)?.[1] || "Dimension", extras: ["Summary"] },
+  };
+  if (misState.reportType === "period") {
+    const rows = getMisGroupedRows(records, "period").sort((a, b) => a.key.localeCompare(b.key)).map((row, index, all) => ({ ...row, previous: all[index - 1]?.value || 0 }));
+    return { headers: ["Period", "Current Value", "Previous Period", "Difference", "% Change"], rows: rows.map((row) => ({ ...row, difference: row.value - row.previous, change: row.previous ? (row.value - row.previous) / row.previous * 100 : 0 })), dimension: "period" };
+  }
+  const config = configs[misState.reportType] || configs.division;
+  let rows = getMisGroupedRows(records, config.dimension);
+  if (misState.reportType === "state") rows = rows.map((row, index, all) => ({ ...row, contribution: records.length ? row.value / Math.max(1, records.reduce((sum, record) => sum + record.valueNumber, 0)) * 100 : 0, growth: index ? (row.value - all[index - 1].value) / Math.max(1, all[index - 1].value) * 100 : 0 }));
+  if (misState.reportType === "heading") rows = rows.map((row) => ({ ...row, maximum: Math.max(...row.records.map((record) => record.valueNumber)), minimum: Math.min(...row.records.map((record) => record.valueNumber)) }));
+  if (misState.reportType === "pivot") rows = rows.map((row) => ({ ...row, summary: misPivotValue(row) }));
+  return { headers: [config.title, "Rank", ...config.extras], rows, dimension: config.dimension };
+}
+
+function misPivotValue(row) {
+  const values = row.records.map((record) => record.valueNumber);
+  if (misState.pivotMetric === "avgValue") return row.count ? row.value / row.count : 0;
+  if (misState.pivotMetric === "count") return row.count;
+  if (misState.pivotMetric === "maxValue") return Math.max(...values, 0);
+  if (misState.pivotMetric === "minValue") return Math.min(...values, 0);
+  return row.value;
+}
+
+function buildMisTable(report, rows) {
+  const header = (label, key) => `<th><button type="button" class="mis-sort-btn" data-mis-sort="${key}">${label}${misState.sortKey === key ? (misState.sortDir === "asc" ? " ↑" : " ↓") : ""}</button></th>`;
+  const cells = (row, index) => {
+    const drill = `data-mis-drill="${escapeHtml(JSON.stringify({ dimension: report.dimension, key: row.key }))}"`;
+    if (misState.reportType === "period") return `<td><button class="mis-drill-btn" ${drill}>${escapeHtml(row.key)}</button></td><td>${misFormat(row.value)}</td><td>${misFormat(row.previous)}</td><td>${misFormat(row.difference)}</td><td>${misFormat(row.change)}%</td>`;
+    if (misState.reportType === "state") return `<td><button class="mis-drill-btn" ${drill}>${escapeHtml(row.key)}</button></td><td>${index + 1}</td><td>${misFormat(row.quantity)}</td><td>${misFormat(row.value)}</td><td>${misFormat(row.contribution)}%</td><td>${misFormat(row.growth)}%</td>`;
+    if (misState.reportType === "heading") return `<td><button class="mis-drill-btn" ${drill}>${escapeHtml(row.key)}</button></td><td>${index + 1}</td><td>${misFormat(row.value)}</td><td>${misFormat(row.average)}</td><td>${misFormat(row.maximum)}</td><td>${misFormat(row.minimum)}</td><td>Current total</td>`;
+    if (misState.reportType === "apr") { const first = row.records[0] || {}; return `<td><button class="mis-drill-btn" ${drill}>${escapeHtml(row.key)}</button></td><td>${index + 1}</td><td>${row.count}</td><td>${misFormat(row.quantity)}</td><td>${misFormat(row.value)}</td><td>${escapeHtml(first.completedAt || "")}</td><td>${escapeHtml(first.status || "Completed")}</td><td>${escapeHtml(first.remarks || "")}</td>`; }
+    if (misState.reportType === "pivot") return `<td><button class="mis-drill-btn" ${drill}>${escapeHtml(row.key)}</button></td><td>${index + 1}</td><td>${misFormat(row.summary)}</td>`;
+    if (misState.reportType === "material") return `<td><button class="mis-drill-btn" ${drill}>${escapeHtml(row.key)}</button></td><td>${index + 1}</td><td>${row.count}</td><td>${misFormat(row.quantity)}</td><td>${misFormat(row.value)}</td>`;
+    return `<td><button class="mis-drill-btn" ${drill}>${escapeHtml(row.key)}</button></td><td>${index + 1}</td><td>${misFormat(row.quantity)}</td><td>${misFormat(row.value)}</td><td>${misFormat(row.average)}</td>`;
+  };
+  return `<table class="master-data-table pricing-data-table mis-table"><thead><tr>${report.headers.map((label, index) => header(label, index === 0 ? "key" : label.toLowerCase().replace(/[^a-z]+/g, "").replace("currentvalue", "value").replace("totalamount", "value").replace("summary", "summary"))).join("")}</tr></thead><tbody>${rows.length ? rows.map(cells).map((cell, index) => `<tr>${cell}</tr>`).join("") : `<tr><td colspan="${report.headers.length}" class="empty-state">No Data Found</td></tr>`}</tbody></table>`;
+}
+
+function sortMisRows(rows) {
+  return [...rows].sort((a, b) => {
+    const av = a[misState.sortKey] ?? a.value ?? 0;
+    const bv = b[misState.sortKey] ?? b.value ?? 0;
+    return typeof av === "string"
+      ? av.localeCompare(bv) * (misState.sortDir === "asc" ? 1 : -1)
+      : (av - bv) * (misState.sortDir === "asc" ? 1 : -1);
+  });
+}
+
+function buildMisDimensionOptions(selected) { return MIS_DIMENSIONS.map(([key, label]) => `<option value="${key}" ${key === selected ? "selected" : ""}>${label}</option>`).join(""); }
+function buildMisMetricOptions(selected) { return [["sumValue", "Sum"], ["avgValue", "Average"], ["count", "Count"], ["maxValue", "Maximum"], ["minValue", "Minimum"]].map(([key, label]) => `<option value="${key}" ${key === selected ? "selected" : ""}>${label}</option>`).join(""); }
+
+function buildMisDrillDown(records) {
+  if (!misState.drill) return "";
+  const { dimension, key } = misState.drill;
+  const matches = records.filter((record) => record[dimension] === key);
+  return `<section class="mis-drilldown"><div class="mis-filter-title"><strong>Drill-down: ${escapeHtml(key)}</strong><button type="button" class="secondary-btn" id="misCloseDrillBtn">Close</button></div><div class="table-wrapper"><table class="master-data-table pricing-data-table"><thead><tr><th>APR No.</th><th>Division</th><th>State</th><th>Period</th><th>Material</th><th>Pricing Heading</th><th>Quantity</th><th>Value</th><th>Completed On</th></tr></thead><tbody>${matches.map((record) => `<tr><td>${escapeHtml(record.aprNumber)}</td><td>${escapeHtml(record.division)}</td><td>${escapeHtml(record.state)}</td><td>${escapeHtml(record.period)}</td><td>${escapeHtml(record.material)}</td><td>${escapeHtml(record.pricingHeading)}</td><td>${misFormat(record.quantityNumber)}</td><td>${misFormat(record.valueNumber)}</td><td>${escapeHtml(record.completedAt)}</td></tr>`).join("") || `<tr><td colspan="9" class="empty-state">No Data Found</td></tr>`}</tbody></table></div></section>`;
+}
+
+function updateMisFiltersFromUi() {
+  document.querySelectorAll(".mis-filter-select").forEach((select) => { misState.filters[select.dataset.misFilter] = [...select.selectedOptions].map((option) => option.value); });
+  misState.filters.dateFrom = document.getElementById("misDateFrom")?.value || "";
+  misState.filters.dateTo = document.getElementById("misDateTo")?.value || "";
+  misState.filters.global = document.getElementById("misGlobalSearch")?.value || "";
+  misState.page = 1;
+}
+
+function exportMisCsv(excel = false) {
+  const records = getMisRecords();
+  const headings = ["APR No.", "Division", "State", "Financial Year", "Period", "Quantity", "Material Description", "Pricing Heading", "Value", "Remarks", "Completed Date"];
+  const rows = records.map((record) => [record.aprNumber, record.division, record.state, record.financialYear, record.period, record.quantity, record.material, record.pricingHeading, record.value, record.remarks, record.completedAt]);
+  const content = [headings, ...rows].map((row) => row.map((value) => `"${String(value ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
+  const blob = new Blob(["\ufeff" + content], { type: "text/csv;charset=utf-8" });
+  const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `MIS-${new Date().toISOString().slice(0, 10)}.${excel ? "xls" : "csv"}`; link.click(); URL.revokeObjectURL(link.href);
+}
+
 function handleAdminLogin() {
   const pin = window.prompt("Enter Administrator PIN:");
   if (pin === null) return;
@@ -1321,6 +1537,43 @@ reportsButton.addEventListener("click", () => {
   document.body.classList.add("pricing-view-active");
   masterDataPanel.classList.remove("hidden");
   renderReportsPanel();
+});
+
+misButton.addEventListener("click", () => {
+  currentAppView = "mis";
+  document.body.classList.add("pricing-view-active");
+  masterDataPanel.classList.remove("hidden");
+  renderMisPanel();
+});
+
+masterDataPanel.addEventListener("click", (event) => {
+  const target = event.target;
+  if (target.id === "misApplyFiltersBtn") { updateMisFiltersFromUi(); renderMisPanel(); }
+  else if (target.id === "misClearFiltersBtn") { misState.filters = {}; misState.page = 1; misState.drill = null; renderMisPanel(); }
+  else if (target.dataset.misSelectAll) { document.querySelectorAll(`[data-mis-filter="${target.dataset.misSelectAll}"] option`).forEach((option) => { option.selected = true; }); updateMisFiltersFromUi(); renderMisPanel(); }
+  else if (target.dataset.misSelectNone) { document.querySelectorAll(`[data-mis-filter="${target.dataset.misSelectNone}"] option`).forEach((option) => { option.selected = false; }); updateMisFiltersFromUi(); renderMisPanel(); }
+  else if (target.dataset.misPage) { misState.page += target.dataset.misPage === "next" ? 1 : -1; renderMisPanel(); }
+  else if (target.dataset.misSort) { const key = target.dataset.misSort; misState.sortDir = misState.sortKey === key && misState.sortDir === "desc" ? "asc" : "desc"; misState.sortKey = key; renderMisPanel(); }
+  else if (target.classList.contains("mis-drill-btn")) { misState.drill = JSON.parse(target.dataset.misDrill); renderMisPanel(); }
+  else if (target.id === "misCloseDrillBtn") { misState.drill = null; renderMisPanel(); }
+  else if (target.id === "misExportCsvBtn") { updateMisFiltersFromUi(); exportMisCsv(); }
+  else if (target.id === "misExportExcelBtn") { updateMisFiltersFromUi(); exportMisCsv(true); }
+  else if (target.id === "misPrintBtn") { window.print(); }
+});
+
+masterDataPanel.addEventListener("change", (event) => {
+  const target = event.target;
+  if (target.classList.contains("mis-filter-select") || target.id === "misDateFrom" || target.id === "misDateTo" || target.id === "misGlobalSearch") { updateMisFiltersFromUi(); renderMisPanel(); }
+  else if (target.id === "misReportType") { misState.reportType = target.value; misState.page = 1; renderMisPanel(); }
+  else if (target.id === "misPivotDimension") { misState.pivotDimension = target.value; renderMisPanel(); }
+  else if (target.id === "misPivotMetric") { misState.pivotMetric = target.value; renderMisPanel(); }
+});
+
+masterDataPanel.addEventListener("input", (event) => {
+  if (event.target.classList.contains("mis-filter-search")) {
+    const select = document.querySelector(`[data-mis-filter="${event.target.dataset.misSearchFor}"]`);
+    if (select) [...select.options].forEach((option) => { option.hidden = !option.text.toLowerCase().includes(event.target.value.toLowerCase()); });
+  }
 });
 
 masterDataPanel.addEventListener("click", (event) => {
