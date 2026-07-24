@@ -15,6 +15,7 @@ const pricingHeaders = [
 
 const masterDataButton = document.getElementById("masterDataBtn");
 const pricingDataButton = document.getElementById("pricingDataBtn");
+const savedPricingRecordsButton = document.getElementById("savedPricingRecordsBtn");
 const reportsButton = document.getElementById("reportsBtn");
 const misButton = document.getElementById("misBtn");
 const masterDataPanel = document.getElementById("masterDataPanel");
@@ -527,14 +528,14 @@ function applyFilterFromPopup() {
   }
   closeFilterPopup();
   syncSelectionToFilteredRecords();
-  renderPricingDataTable();
+  renderSavedPricingRecordsPanel();
 }
 
 function clearColumnFilter(colKey) {
   delete savedRecordFilters[colKey];
   closeFilterPopup();
   syncSelectionToFilteredRecords();
-  renderPricingDataTable();
+  renderSavedPricingRecordsPanel();
 }
 
 // ── Report filter helpers ─────────────────────────────────────────────────────
@@ -736,10 +737,6 @@ function buildSavedRowHtml(row, index) {
 }
 
 function renderPricingDataTable() {
-  const selCount = selectedSavedRowIds.size;
-  const hasSelection = selCount > 0;
-  const isSingleSelection = selCount === 1;
-  const isEditingAny = !!editingSavedRowId;
   const entryTableHeaders = `
     <tr>
       <th>Sl. No.</th>
@@ -754,12 +751,6 @@ function renderPricingDataTable() {
       <th>Remarks</th>
       <th>Actions</th>
     </tr>`;
-  const hasActiveFilters = Object.values(savedRecordFilters).some((f) => f?.active);
-  const filteredRecords = getFilteredSavedRecords();
-  const savedTableHeaders = `<tr>${buildSavedTableHeaderRow(filteredRecords)}</tr>`;
-  // After render, set indeterminate state via JS (can't be done in HTML)
-  // This is handled in a post-render step below.
-
   masterDataPanel.innerHTML = `
     <div class="master-data-card pricing-data-card">
       <div class="panel-heading">
@@ -784,33 +775,46 @@ function renderPricingDataTable() {
           </tbody>
         </table>
       </div>
+    </div>
+  `;
+}
 
-      <div class="saved-records-section">
-        <div class="saved-records-header">
-          <h3>Saved Pricing Records</h3>
-          <div class="table-actions">
-            ${hasActiveFilters ? '<button type="button" class="secondary-btn" id="clearAllFiltersBtn">Clear All Filters</button>' : ""}
-            ${hasSelection ? `<span class="selection-count">${selCount} record${selCount > 1 ? "s" : ""} selected</span>` : ""}
-            <button type="button" class="edit-btn" id="editSavedRowBtn" ${isSingleSelection && !isEditingAny ? "" : "disabled"}>Edit</button>
-            <button type="button" class="delete-btn" id="deleteSavedRowBtn" ${isSingleSelection && !isEditingAny ? "" : "disabled"}>Delete</button>
-            <button type="button" class="complete-btn" id="completeSavedRowBtn" ${hasSelection && !isEditingAny ? "" : "disabled"}>Complete</button>
-          </div>
+function renderSavedPricingRecordsPanel() {
+  const selCount = selectedSavedRowIds.size;
+  const hasSelection = selCount > 0;
+  const isSingleSelection = selCount === 1;
+  const isEditingAny = !!editingSavedRowId;
+  const hasActiveFilters = Object.values(savedRecordFilters).some((f) => f?.active);
+  const filteredRecords = getFilteredSavedRecords();
+
+  masterDataPanel.innerHTML = `
+    <div class="master-data-card pricing-data-card">
+      <div class="panel-heading">
+        <h2>SAVED PRICING RECORDS</h2>
+        <p>Review, edit, filter, or complete saved pricing records.</p>
+      </div>
+      <div class="saved-records-header">
+        <div class="table-actions">
+          ${hasActiveFilters ? '<button type="button" class="secondary-btn" id="clearAllFiltersBtn">Clear All Filters</button>' : ""}
+          ${hasSelection ? `<span class="selection-count">${selCount} record${selCount > 1 ? "s" : ""} selected</span>` : ""}
+          <button type="button" class="edit-btn" id="editSavedRowBtn" ${isSingleSelection && !isEditingAny ? "" : "disabled"}>Edit</button>
+          <button type="button" class="delete-btn" id="deleteSavedRowBtn" ${isSingleSelection && !isEditingAny ? "" : "disabled"}>Delete</button>
+          <button type="button" class="complete-btn" id="completeSavedRowBtn" ${hasSelection && !isEditingAny ? "" : "disabled"}>Complete</button>
         </div>
-        <div class="table-wrapper saved-table-wrapper">
-          <table class="master-data-table pricing-data-table">
-            <thead>${savedTableHeaders}</thead>
-            <tbody>
-              ${filteredRecords.length
-                ? filteredRecords.map((row, index) => buildSavedRowHtml(row, index)).join("")
-                : `<tr><td colspan="13" class="empty-state">${savedPricingRecords.length ? "No records match the current filters." : "No saved records yet. Save a row above to see it here."}</td></tr>`}
-            </tbody>
-          </table>
-        </div>
+      </div>
+      <div class="table-wrapper saved-table-wrapper">
+        <table class="master-data-table pricing-data-table">
+          <thead><tr>${buildSavedTableHeaderRow(filteredRecords)}</tr></thead>
+          <tbody>
+            ${filteredRecords.length
+              ? filteredRecords.map((row, index) => buildSavedRowHtml(row, index)).join("")
+              : `<tr><td colspan="13" class="empty-state">${savedPricingRecords.length ? "No records match the current filters." : "No saved records yet. Create a record in Pricing Data to see it here."}</td></tr>`}
+          </tbody>
+        </table>
       </div>
     </div>
   `;
 
-  // Set indeterminate state on Select All checkbox (must be done via JS after render)
   const selectAllCb = document.getElementById("selectAllSavedRows");
   if (selectAllCb && selectAllCb.dataset.indeterminate === "true") {
     selectAllCb.indeterminate = true;
@@ -947,7 +951,7 @@ function handleSavePricingDataRows() {
 function handleCompleteSavedRows() {
   if (selectedSavedRowIds.size === 0) {
     pricingDataValidationMessage = "Please select at least one record to complete.";
-    renderPricingDataTable();
+    renderSavedPricingRecordsPanel();
     return;
   }
 
@@ -958,7 +962,7 @@ function handleCompleteSavedRows() {
 
   if (invalidRows.length) {
     pricingDataValidationMessage = "One or more selected records have incomplete fields. Please fix them before completing.";
-    renderPricingDataTable();
+    renderSavedPricingRecordsPanel();
     return;
   }
 
@@ -981,7 +985,7 @@ function handleCompleteSavedRows() {
   editingSavedRowId = null;
   pricingDataValidationMessage = `${newCompleted.length} record${newCompleted.length > 1 ? "s" : ""} marked as completed.`;
   persistPricingDataState();
-  renderPricingDataTable();
+  renderSavedPricingRecordsPanel();
 }
 
 function handleEditCompletedPricingRecord(recordId) {
@@ -1532,6 +1536,13 @@ pricingDataButton.addEventListener("click", () => {
   renderPricingDataTable();
 });
 
+savedPricingRecordsButton.addEventListener("click", () => {
+  currentAppView = "saved-pricing-records";
+  document.body.classList.add("pricing-view-active");
+  masterDataPanel.classList.remove("hidden");
+  renderSavedPricingRecordsPanel();
+});
+
 reportsButton.addEventListener("click", () => {
   currentAppView = "reports";
   document.body.classList.add("pricing-view-active");
@@ -1602,14 +1613,14 @@ masterDataPanel.addEventListener("click", (event) => {
   } else if (target.id === "clearAllFiltersBtn") {
     savedRecordFilters = {};
     syncSelectionToFilteredRecords();
-    renderPricingDataTable();
+    renderSavedPricingRecordsPanel();
   } else if (target.classList.contains("col-filter-btn")) {
     openFilterPopup(target.dataset.filterCol, target);
   } else if (target.id === "editSavedRowBtn") {
     if (selectedSavedRowIds.size !== 1 || editingSavedRowId) return;
     editingSavedRowId = [...selectedSavedRowIds][0];
     pricingDataValidationMessage = "";
-    renderPricingDataTable();
+    renderSavedPricingRecordsPanel();
   } else if (target.id === "deleteSavedRowBtn") {
     if (selectedSavedRowIds.size !== 1 || editingSavedRowId) return;
     const confirmed = window.confirm("Are you sure you want to delete this record?");
@@ -1618,7 +1629,7 @@ masterDataPanel.addEventListener("click", (event) => {
     savedPricingRecords = savedPricingRecords.filter((row) => row.id !== idToDelete);
     selectedSavedRowIds.clear();
     persistPricingDataState();
-    renderPricingDataTable();
+    renderSavedPricingRecordsPanel();
   } else if (target.id === "completeSavedRowBtn") {
     if (editingSavedRowId) return;
     handleCompleteSavedRows();
@@ -1629,19 +1640,19 @@ masterDataPanel.addEventListener("click", (event) => {
     const validation = validateSavedRow(row);
     if (!validation.valid) {
       pricingDataValidationMessage = validation.message;
-      renderPricingDataTable();
+      renderSavedPricingRecordsPanel();
       return;
     }
     editingSavedRowId = null;
     selectedSavedRowIds.clear();
     pricingDataValidationMessage = "Record updated successfully.";
     persistPricingDataState();
-    renderPricingDataTable();
+    renderSavedPricingRecordsPanel();
   } else if (target.matches("[data-action='cancel-saved-edit']")) {
     editingSavedRowId = null;
     selectedSavedRowIds.clear();
     pricingDataValidationMessage = "";
-    renderPricingDataTable();
+    renderSavedPricingRecordsPanel();
   } else if (target.id === "addPricingDataRowBtn") {
     handleAddPricingDataRow();
   } else if (target.id === "savePricingDataBtn") {
@@ -1690,7 +1701,7 @@ masterDataPanel.addEventListener("change", (event) => {
     } else {
       filteredRecords.forEach((r) => selectedSavedRowIds.delete(r.id));
     }
-    renderPricingDataTable();
+    renderSavedPricingRecordsPanel();
   } else if (event.target.classList.contains("saved-row-checkbox")) {
     const rowId = event.target.dataset.rowId;
     if (event.target.checked) {
@@ -1698,7 +1709,7 @@ masterDataPanel.addEventListener("change", (event) => {
     } else {
       selectedSavedRowIds.delete(rowId);
     }
-    renderPricingDataTable();
+    renderSavedPricingRecordsPanel();
   } else if (event.target.id === "masterDataModeSelect") {
     currentMasterDataView = event.target.value;
     renderMasterDataPanel();
