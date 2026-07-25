@@ -210,13 +210,32 @@ body {
 }
 
 .pricing-data-table select,
-.pricing-data-table input {
+.pricing-data-table input,
+.pricing-data-table textarea {
   width: 100%;
   min-width: 80px;
   padding: 8px 10px;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
   font-size: 0.9rem;
+}
+
+.pricing-data-table textarea.complex-value-editor {
+  box-sizing: border-box;
+  min-width: 220px;
+  min-height: 76px;
+  max-width: min(70vw, 720px);
+  max-height: 50vh;
+  resize: both;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.multiline-cell {
+  display: block;
+  min-width: 160px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .pricing-data-table td {
@@ -798,7 +817,8 @@ body.pricing-view-active .pricing-data-table {
 }
 
 body.pricing-view-active .pricing-data-table select,
-body.pricing-view-active .pricing-data-table input {
+body.pricing-view-active .pricing-data-table input,
+body.pricing-view-active .pricing-data-table textarea {
   width: 100%;
   min-width: 80px;
   padding: 8px 10px;
@@ -830,40 +850,7 @@ body.pricing-view-active footer {
   padding: 10px 12px;
 }
 
-.mis-dashboard { gap: 10px; }
-.mis-filter-panel, .mis-chart, .mis-drilldown { border: 1px solid #dbe5f0; border-radius: 8px; padding: 10px; background: #fbfdff; flex-shrink: 0; }
-.mis-filter-title { display: flex; justify-content: space-between; align-items: center; gap: 10px; color: #35516f; margin-bottom: 8px; font-size: .85rem; }
-.mis-filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; }
-.mis-filter { min-width: 0; display: grid; gap: 4px; font-size: .78rem; color: #35516f; }
-.mis-filter select, .mis-filter input { width: 100%; border: 1px solid #cbd7e4; border-radius: 4px; padding: 5px; font: inherit; background: white; }
-.mis-filter select { min-height: 62px; }
-.mis-date-filter { grid-template-columns: 1fr 1fr; }
-.mis-date-filter label { grid-column: 1 / -1; }
-.mis-link-btn { border: 0; background: transparent; color: var(--secondary); font-size: .75rem; cursor: pointer; margin-right: 8px; text-decoration: underline; }
-.mis-actions { margin-top: 10px; }
-.mis-global-search { min-width: 220px; padding: 7px 9px; border: 1px solid #cbd7e4; border-radius: 5px; }
-.mis-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)); gap: 8px; flex-shrink: 0; }
-.mis-kpi { padding: 9px; border-radius: 7px; background: linear-gradient(135deg, #003366, #00509e); color: white; min-width: 0; }
-.mis-kpi span { display: block; font-size: .7rem; opacity: .85; }
-.mis-kpi strong { display: block; font-size: .95rem; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mis-chart-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; flex-shrink: 0; }
-.mis-chart h3 { font-size: .85rem; margin-bottom: 7px; color: #003366; }
-.mis-bar-row { display: grid; grid-template-columns: minmax(70px, 1fr) 2fr auto; align-items: center; gap: 6px; font-size: .72rem; margin: 5px 0; }
-.mis-bar-row > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.mis-bar-track { height: 9px; background: #e4edf5; border-radius: 999px; overflow: hidden; }
-.mis-bar-track i { display: block; height: 100%; background: #00509e; border-radius: inherit; }
-.mis-report-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex-shrink: 0; }
-.mis-report-toolbar label { font-size: .82rem; font-weight: 600; color: #35516f; }
-.mis-report-toolbar select { margin-left: 5px; padding: 5px; border: 1px solid #cbd7e4; border-radius: 4px; }
-.mis-table-wrapper { flex: 1; min-height: 150px; }
-.mis-table th { position: sticky; top: 0; z-index: 2; }
-.mis-sort-btn, .mis-drill-btn { color: inherit; font: inherit; border: 0; background: transparent; cursor: pointer; text-align: left; font-weight: inherit; }
-.mis-sort-btn { color: white; }
-.mis-drill-btn { color: var(--secondary); text-decoration: underline; }
-.mis-pagination { display: flex; align-items: center; justify-content: flex-end; gap: 9px; font-size: .8rem; flex-shrink: 0; }
-.mis-note { color: #61758a; font-size: .73rem; flex-shrink: 0; }
-.mis-drilldown { max-height: 260px; overflow: auto; }
-@media print { .hero, .nav, footer, .mis-filter-panel, .mis-actions, .mis-report-toolbar, .mis-pagination, .mis-note { display: none !important; } body, .container, .master-data-panel, .master-data-card { overflow: visible !important; height: auto !important; } .mis-dashboard { box-shadow: none; } }
+@media print { .hero, .nav, footer { display: none !important; } body, .container, .master-data-panel, .master-data-card { overflow: visible !important; height: auto !important; } }
 
 @media (max-width: 900px) {
   .container {
@@ -899,5 +886,4 @@ body.pricing-view-active footer {
     padding: 8px 6px;
   }
 
-  .mis-chart-grid { grid-template-columns: 1fr; }
 }
