@@ -40,6 +40,7 @@ let masterDataEntries = [];
 let pricingHeadingEntries = [];
 let stateNameEntries = [];
 let financialYearEntries = [];
+let unitRateEntries = [];
 let pricingDataRows = [];
 let savedPricingRecords = getStoredValue("savedPricingRecords", []);
 let completedPricingRecords = getStoredValue("completedPricingRecords", []);
@@ -51,6 +52,7 @@ let editingEntryId = null;
 let editingPricingHeadingId = null;
 let editingStateNameId = null;
 let editingFinancialYearId = null;
+let editingUnitRateId = null;
 let currentMasterDataView = "material";
 let currentAppView = "master";
 let editingReportRecordId = null;
@@ -118,6 +120,7 @@ function renderMasterDataTable() {
           <option value="pricing" ${currentMasterDataView === "pricing" ? "selected" : ""}>PRICING HEADING ENTRY</option>
           <option value="state" ${currentMasterDataView === "state" ? "selected" : ""}>STATE NAME ENTRY</option>
           <option value="financial-year" ${currentMasterDataView === "financial-year" ? "selected" : ""}>FINANCIAL YEAR ENTRY</option>
+          <option value="unit-rate" ${currentMasterDataView === "unit-rate" ? "selected" : ""}>UNIT RATE ENTRY</option>
         </select>
       </div>
 
@@ -196,6 +199,7 @@ function renderStateNameEntry() {
           <option value="pricing">PRICING HEADING ENTRY</option>
           <option value="state" selected>STATE NAME ENTRY</option>
           <option value="financial-year">FINANCIAL YEAR ENTRY</option>
+          <option value="unit-rate">UNIT RATE ENTRY</option>
         </select>
       </div>
 
@@ -257,6 +261,7 @@ function renderFinancialYearEntry() {
           <option value="pricing">PRICING HEADING ENTRY</option>
           <option value="state">STATE NAME ENTRY</option>
           <option value="financial-year" selected>FINANCIAL YEAR ENTRY</option>
+          <option value="unit-rate">UNIT RATE ENTRY</option>
         </select>
       </div>
 
@@ -305,6 +310,68 @@ function renderFinancialYearEntry() {
   `;
 }
 
+function renderUnitRateEntry() {
+  const entryToEdit = unitRateEntries.find((entry) => entry.id === editingUnitRateId) || null;
+  const canManage = isMasterDataAdministrator();
+
+  masterDataPanel.innerHTML = `
+    <div class="master-data-card">
+      <div class="master-data-mode-selector">
+        <label for="masterDataModeSelect">Entry Type</label>
+        <select id="masterDataModeSelect">
+          <option value="material">MATERIAL MASTER DATA ENTRY</option>
+          <option value="pricing">PRICING HEADING ENTRY</option>
+          <option value="state">STATE NAME ENTRY</option>
+          <option value="financial-year">FINANCIAL YEAR ENTRY</option>
+          <option value="unit-rate" selected>UNIT RATE ENTRY</option>
+        </select>
+      </div>
+
+      <div class="panel-heading">
+        <h2>UNIT RATE ENTRY</h2>
+      </div>
+      ${buildMasterDataAccessControls()}
+
+      ${canManage ? `<div class="pricing-heading-form">
+        <input id="unitRateInput" type="text" value="${escapeHtml(entryToEdit?.name || "")}" placeholder="Enter unit rate" />
+        <button type="button" class="add-row-btn" id="addUnitRateBtn">${entryToEdit ? "Save" : "Add"}</button>
+        ${entryToEdit ? '<button type="button" class="secondary-btn" id="cancelUnitRateEditBtn">Cancel</button>' : ""}
+      </div>` : ""}
+
+      <div class="saved-entries-section">
+        <h3>Saved Unit Rates</h3>
+        <table class="master-data-table">
+          <thead>
+            <tr>
+              <th>Sl. No.</th>
+              <th>Unit Rate</th>
+              ${canManage ? "<th>Actions</th>" : ""}
+            </tr>
+          </thead>
+          <tbody>
+            ${unitRateEntries.length
+              ? unitRateEntries
+                  .map(
+                    (entry, index) => `
+                      <tr>
+                        <td>${index + 1}</td>
+                        <td>${escapeHtml(entry.name)}</td>
+                        ${canManage ? `<td class="entry-actions">
+                          <button type="button" class="edit-btn" data-action="edit-unit-rate" data-id="${entry.id}">Edit</button>
+                          <button type="button" class="delete-btn" data-action="delete-unit-rate" data-id="${entry.id}">Delete</button>
+                        </td>` : ""}
+                      </tr>
+                    `
+                  )
+                  .join("")
+              : `<tr><td colspan="${canManage ? 3 : 2}" class="empty-state">No unit rates added yet.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
 function renderPricingHeadingEntry() {
   const entryToEdit = pricingHeadingEntries.find((entry) => entry.id === editingPricingHeadingId) || null;
   const canManage = isMasterDataAdministrator();
@@ -318,6 +385,7 @@ function renderPricingHeadingEntry() {
           <option value="pricing" selected>PRICING HEADING ENTRY</option>
           <option value="state">STATE NAME ENTRY</option>
           <option value="financial-year">FINANCIAL YEAR ENTRY</option>
+          <option value="unit-rate">UNIT RATE ENTRY</option>
         </select>
       </div>
 
@@ -373,15 +441,14 @@ function buildEntryRowHtml(row, index) {
       <td><select class="pricing-division-select" data-row-id="${row.id}"><option value="">Select division</option><option value="FERTILIZER" ${row.division === "FERTILIZER" ? "selected" : ""}>FERTILIZER</option><option value="IPD" ${row.division === "IPD" ? "selected" : ""}>IPD</option><option value="TIE-UP" ${row.division === "TIE-UP" ? "selected" : ""}>TIE-UP</option></select></td>
       <td><select class="pricing-state-select" data-row-id="${row.id}"><option value="">Select state</option>${stateNameEntries.map((e) => `<option value="${e.id}" ${e.id === row.stateId ? "selected" : ""}>${escapeHtml(e.name)}</option>`).join("")}</select></td>
       <td><select class="pricing-material-select" data-row-id="${row.id}"><option value="">Select material</option>${masterDataEntries.map((e) => `<option value="${e.id}" ${e.id === row.materialId ? "selected" : ""}>${escapeHtml(e.description)}</option>`).join("")}</select></td>
-      <td><input type="text" class="pricing-apr-input" data-row-id="${row.id}" value="${escapeHtml(row.aprNumber || "")}" placeholder="Enter APR No." /></td>
       <td><input type="text" class="pricing-batchno-input" data-row-id="${row.id}" value="${escapeHtml(row.batchNo || "")}" placeholder="Enter batch no." /></td>
       <td><input type="text" class="pricing-slno-input" data-row-id="${row.id}" value="${escapeHtml(row.slNo || "")}" placeholder="Enter SL No." /></td>
-      <td><textarea class="pricing-period-input complex-value-editor" data-row-id="${row.id}" rows="2" placeholder="Enter period">${escapeHtml(row.period)}</textarea></td>
+      <td><textarea class="pricing-period-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter period">${escapeHtml(row.period)}</textarea></td>
       <td><input type="text" class="pricing-quantity-input" data-row-id="${row.id}" value="${escapeHtml(row.quantity)}" placeholder="Enter quantity" /></td>
-      <td><input type="text" class="pricing-unit-rate-input" data-row-id="${row.id}" value="${escapeHtml(row.unitRate || "")}" placeholder="Enter unit rate" /></td>
+      <td><select class="pricing-unit-rate-select" data-row-id="${row.id}"><option value="">Select unit rate</option>${unitRateEntries.map((e) => `<option value="${escapeHtml(e.name)}" ${row.unitRate === e.name ? "selected" : ""}>${escapeHtml(e.name)}</option>`).join("")}</select></td>
       <td><select class="pricing-heading-select" data-row-id="${row.id}"><option value="">Select pricing heading</option>${pricingHeadingEntries.map((e) => `<option value="${e.id}" ${e.id === row.pricingHeadingId ? "selected" : ""}>${escapeHtml(e.description)}</option>`).join("")}</select></td>
-      <td><textarea class="pricing-value-input complex-value-editor" data-row-id="${row.id}" rows="3" placeholder="Enter value, slabs, conditions, formulas, or text">${escapeHtml(row.value)}</textarea></td>
-      <td><textarea class="pricing-remarks-input complex-value-editor" data-row-id="${row.id}" rows="2" placeholder="Enter remarks">${escapeHtml(row.remarks)}</textarea></td>
+      <td><textarea class="pricing-value-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter value, slabs, conditions, formulas, or text">${escapeHtml(row.value)}</textarea></td>
+      <td><textarea class="pricing-remarks-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter remarks">${escapeHtml(row.remarks)}</textarea></td>
       <td class="entry-actions"><button type="button" class="delete-btn" data-action="delete-pricing-data-row" data-id="${row.id}">Delete</button></td>
     </tr>
   `;
@@ -730,12 +797,12 @@ function buildSavedRowHtml(row, index) {
         <td><input type="text" class="saved-apr-input" data-row-id="${row.id}" value="${escapeHtml(row.aprNumber || "")}" placeholder="Enter APR No." /></td>
         <td><input type="text" class="saved-batchno-input" data-row-id="${row.id}" value="${escapeHtml(row.batchNo || "")}" placeholder="Enter batch no." /></td>
         <td><input type="text" class="saved-slno-input" data-row-id="${row.id}" value="${escapeHtml(row.slNo || "")}" placeholder="Enter SL No." /></td>
-        <td><textarea class="saved-period-input complex-value-editor" data-row-id="${row.id}" rows="2" placeholder="Enter period">${escapeHtml(row.period)}</textarea></td>
+        <td><textarea class="saved-period-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter period">${escapeHtml(row.period)}</textarea></td>
         <td><input type="text" class="saved-quantity-input" data-row-id="${row.id}" value="${escapeHtml(row.quantity)}" placeholder="Enter quantity" /></td>
         <td><input type="text" class="saved-unit-rate-input" data-row-id="${row.id}" value="${escapeHtml(row.unitRate || "")}" placeholder="Enter unit rate" /></td>
         <td><select class="saved-heading-select" data-row-id="${row.id}"><option value="">Select pricing heading</option>${pricingHeadingEntries.map((e) => `<option value="${e.id}" ${e.id === row.pricingHeadingId ? "selected" : ""}>${escapeHtml(e.description)}</option>`).join("")}</select></td>
-        <td><textarea class="saved-value-input complex-value-editor" data-row-id="${row.id}" rows="3" placeholder="Enter value, slabs, conditions, formulas, or text">${escapeHtml(row.value)}</textarea></td>
-        <td><textarea class="saved-remarks-input complex-value-editor" data-row-id="${row.id}" rows="2" placeholder="Enter remarks">${escapeHtml(row.remarks)}</textarea></td>
+        <td><textarea class="saved-value-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter value, slabs, conditions, formulas, or text">${escapeHtml(row.value)}</textarea></td>
+        <td><textarea class="saved-remarks-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter remarks">${escapeHtml(row.remarks)}</textarea></td>
         <td class="entry-actions">
           <button type="button" class="add-row-btn" data-action="save-saved-row" data-id="${row.id}">Save</button>
           <button type="button" class="secondary-btn" data-action="cancel-saved-edit">Cancel</button>
@@ -776,7 +843,6 @@ function renderPricingDataTable() {
       <th>Division</th>
       <th>State</th>
       <th>Material Description</th>
-      <th>APR No.</th>
       <th>BATCH NO.</th>
       <th>SL No.</th>
       <th>Period</th>
@@ -807,7 +873,7 @@ function renderPricingDataTable() {
           <tbody>
             ${pricingDataRows.length
               ? pricingDataRows.map((row, index) => buildEntryRowHtml(row, index)).join("")
-              : '<tr><td colspan="13" class="empty-state">No pricing rows yet. Click Add Row to begin.</td></tr>'}
+              : '<tr><td colspan="12" class="empty-state">No pricing rows yet. Click Add Row to begin.</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -905,6 +971,7 @@ function loadPersistedState() {
   completedPricingRecords = getStoredValue("completedPricingRecords", []);
   aprCounter = Number(getStoredValue("aprCounter", 0)) || 0;
   deletionAuditLog = getStoredValue("deletionAuditLog", []);
+  unitRateEntries = getStoredValue("unitRateEntries", []);
 }
 
 loadPersistedState();
@@ -915,6 +982,7 @@ function persistPricingDataState() {
   setStoredValue("completedPricingRecords", completedPricingRecords);
   setStoredValue("aprCounter", aprCounter);
   setStoredValue("deletionAuditLog", deletionAuditLog);
+  setStoredValue("unitRateEntries", unitRateEntries);
 }
 
 function isPricingDataRowComplete(row) {
@@ -1219,6 +1287,8 @@ function renderMasterDataPanel() {
     renderStateNameEntry();
   } else if (currentMasterDataView === "financial-year") {
     renderFinancialYearEntry();
+  } else if (currentMasterDataView === "unit-rate") {
+    renderUnitRateEntry();
   } else {
     renderMasterDataTable();
   }
@@ -1444,6 +1514,55 @@ function handleDeleteFinancialYear(id) {
   renderFinancialYearEntry();
 }
 
+function handleAddUnitRate() {
+  if (!requireMasterDataAdministrator()) return;
+  const name = document.getElementById("unitRateInput")?.value.trim();
+  if (!name) {
+    return;
+  }
+
+  if (editingUnitRateId) {
+    const recordId = editingUnitRateId;
+    unitRateEntries = unitRateEntries.map((entry) =>
+      entry.id === editingUnitRateId ? { ...entry, name } : entry
+    );
+    editingUnitRateId = null;
+    logMasterDataAudit("Edit", "Unit Rate Master", recordId);
+  } else {
+    const recordId = Date.now().toString();
+    unitRateEntries.push({ id: recordId, name });
+    logMasterDataAudit("Create", "Unit Rate Master", recordId);
+  }
+
+  renderUnitRateEntry();
+}
+
+function handleEditUnitRate(id) {
+  if (!requireMasterDataAdministrator()) return;
+  editingUnitRateId = id;
+  renderUnitRateEntry();
+}
+
+function handleDeleteUnitRate(id) {
+  if (!requireMasterDataAdministrator()) return;
+  const entry = unitRateEntries.find((item) => item.id === id);
+  if (!entry) {
+    return;
+  }
+
+  const confirmed = window.confirm(`Delete unit rate "${entry.name}"?`);
+  if (!confirmed) {
+    return;
+  }
+
+  unitRateEntries = unitRateEntries.filter((item) => item.id !== id);
+  logMasterDataAudit("Delete", "Unit Rate Master", entry.id);
+  if (editingUnitRateId === id) {
+    editingUnitRateId = null;
+  }
+  renderUnitRateEntry();
+}
+
 masterDataButton.addEventListener("click", () => {
   currentMasterDataView = "material";
   currentAppView = "master";
@@ -1507,6 +1626,11 @@ masterDataPanel.addEventListener("click", (event) => {
   } else if (target.id === "cancelFinancialYearEditBtn") {
     editingFinancialYearId = null;
     renderFinancialYearEntry();
+  } else if (target.id === "addUnitRateBtn") {
+    handleAddUnitRate();
+  } else if (target.id === "cancelUnitRateEditBtn") {
+    editingUnitRateId = null;
+    renderUnitRateEntry();
   } else if (target.id === "clearAllFiltersBtn") {
     savedRecordFilters = {};
     syncSelectionToFilteredRecords();
@@ -1570,6 +1694,10 @@ masterDataPanel.addEventListener("click", (event) => {
     handleEditFinancialYear(target.dataset.id);
   } else if (target.matches("[data-action='delete-financial-year']")) {
     handleDeleteFinancialYear(target.dataset.id);
+  } else if (target.matches("[data-action='edit-unit-rate']")) {
+    handleEditUnitRate(target.dataset.id);
+  } else if (target.matches("[data-action='delete-unit-rate']")) {
+    handleDeleteUnitRate(target.dataset.id);
   } else if (target.matches("[data-action='edit-pricing-data-row']")) {
     pricingDataValidationMessage = "";
     renderPricingDataTable();
@@ -1630,6 +1758,8 @@ masterDataPanel.addEventListener("change", (event) => {
     updatePricingDataRow(event.target.dataset.rowId, "materialId", event.target.value);
   } else if (event.target.classList.contains("pricing-heading-select")) {
     updatePricingDataRow(event.target.dataset.rowId, "pricingHeadingId", event.target.value);
+  } else if (event.target.classList.contains("pricing-unit-rate-select")) {
+    updatePricingDataRow(event.target.dataset.rowId, "unitRate", event.target.value);
   } else if (event.target.classList.contains("saved-division-select")) {
     updateSavedPricingRow(event.target.dataset.rowId, "division", event.target.value);
   } else if (event.target.classList.contains("saved-state-select")) {
@@ -1656,8 +1786,6 @@ masterDataPanel.addEventListener("input", (event) => {
     updatePricingDataRow(event.target.dataset.rowId, "period", event.target.value);
   } else if (event.target.classList.contains("pricing-quantity-input")) {
     updatePricingDataRow(event.target.dataset.rowId, "quantity", event.target.value);
-  } else if (event.target.classList.contains("pricing-unit-rate-input")) {
-    updatePricingDataRow(event.target.dataset.rowId, "unitRate", event.target.value);
   } else if (event.target.classList.contains("pricing-batchno-input")) {
     updatePricingDataRow(event.target.dataset.rowId, "batchNo", event.target.value);
   } else if (event.target.classList.contains("pricing-value-input")) {
