@@ -18,7 +18,7 @@ html,
 body {
   height: 100%;
   width: 100%;
-  overflow: hidden;
+  overflow-x: hidden;
 }
 
 body {
@@ -28,7 +28,7 @@ body {
   line-height: 1.4;
   display: flex;
   flex-direction: column;
-  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .hero {
@@ -90,11 +90,11 @@ body {
   min-height: 0;
   margin: 0;
   padding: 8px 12px 10px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .master-data-panel {
-  height: 100%;
+  height: auto;
   margin-top: 0;
 }
 
@@ -107,10 +107,10 @@ body {
   border-radius: 12px;
   padding: 12px;
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08);
-  height: 100%;
+  height: auto;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .panel-heading {
@@ -229,6 +229,13 @@ body {
   resize: both;
   overflow: auto;
   white-space: pre-wrap;
+}
+
+.pricing-data-table textarea.pricing-period-input,
+.pricing-data-table textarea.saved-period-input {
+  min-width: 180px;
+  min-height: 72px;
+  max-width: min(50vw, 360px);
 }
 
 .multiline-cell {
@@ -510,9 +517,9 @@ body {
 }
 
 .entry-table-wrapper {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   min-height: 80px;
-  max-height: 220px;
+  max-height: none;
   overflow-y: auto;
   overflow-x: auto;
   border: 1px solid #e2e8f0;
