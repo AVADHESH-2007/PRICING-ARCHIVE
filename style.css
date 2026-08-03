@@ -210,8 +210,7 @@ body {
 }
 
 .pricing-data-table select,
-.pricing-data-table input,
-.pricing-data-table textarea {
+.pricing-data-table input {
   width: 100%;
   min-width: 80px;
   padding: 8px 10px;
@@ -220,22 +219,29 @@ body {
   font-size: 0.9rem;
 }
 
-.pricing-data-table textarea.complex-value-editor {
+.pricing-data-table textarea.complex-value-editor,
+.pricing-data-table textarea.compact-editor {
   box-sizing: border-box;
-  min-width: 220px;
-  min-height: 76px;
-  max-width: min(70vw, 720px);
+  display: block;
+  width: 180px;
+  max-width: 100%;
+  min-width: 140px;
+  min-height: 38px;
+  height: 38px;
   max-height: 50vh;
   resize: both;
   overflow: auto;
   white-space: pre-wrap;
+  flex: 0 0 auto;
+  align-self: flex-start;
 }
 
 .pricing-data-table textarea.pricing-period-input,
 .pricing-data-table textarea.saved-period-input {
-  min-width: 180px;
-  min-height: 72px;
-  max-width: min(50vw, 360px);
+  min-width: 140px;
+  min-height: 38px;
+  width: 180px;
+  max-width: 100%;
 }
 
 .multiline-cell {
@@ -824,10 +830,16 @@ body.pricing-view-active .pricing-data-table {
 }
 
 body.pricing-view-active .pricing-data-table select,
-body.pricing-view-active .pricing-data-table input,
-body.pricing-view-active .pricing-data-table textarea {
+body.pricing-view-active .pricing-data-table input {
   width: 100%;
   min-width: 80px;
+  padding: 8px 10px;
+  font-size: 0.9rem;
+}
+
+body.pricing-view-active .pricing-data-table textarea {
+  width: 180px;
+  min-width: 140px;
   padding: 8px 10px;
   font-size: 0.9rem;
 }
