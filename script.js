@@ -40,7 +40,7 @@ let masterDataEntries = [];
 let pricingHeadingEntries = [];
 let stateNameEntries = [];
 let financialYearEntries = [];
-let pricingDataRows = getStoredValue("pricingDataRows", []);
+let pricingDataRows = [];
 let savedPricingRecords = getStoredValue("savedPricingRecords", []);
 let completedPricingRecords = getStoredValue("completedPricingRecords", []);
 let aprCounter = getStoredValue("aprCounter", 0);
@@ -369,16 +369,19 @@ function renderPricingHeadingEntry() {
 function buildEntryRowHtml(row, index) {
   return `
     <tr>
-      <td class="sl-no-cell"><span>${index + 1}</span></td>
+      <td><select class="pricing-financial-year-select" data-row-id="${row.id}"><option value="">Select financial year</option>${financialYearEntries.map((e) => `<option value="${e.id}" ${e.id === row.financialYearId ? "selected" : ""}>${escapeHtml(e.year)}</option>`).join("")}</select></td>
       <td><select class="pricing-division-select" data-row-id="${row.id}"><option value="">Select division</option><option value="FERTILIZER" ${row.division === "FERTILIZER" ? "selected" : ""}>FERTILIZER</option><option value="IPD" ${row.division === "IPD" ? "selected" : ""}>IPD</option><option value="TIE-UP" ${row.division === "TIE-UP" ? "selected" : ""}>TIE-UP</option></select></td>
       <td><select class="pricing-state-select" data-row-id="${row.id}"><option value="">Select state</option>${stateNameEntries.map((e) => `<option value="${e.id}" ${e.id === row.stateId ? "selected" : ""}>${escapeHtml(e.name)}</option>`).join("")}</select></td>
-      <td><select class="pricing-financial-year-select" data-row-id="${row.id}"><option value="">Select financial year</option>${financialYearEntries.map((e) => `<option value="${e.id}" ${e.id === row.financialYearId ? "selected" : ""}>${escapeHtml(e.year)}</option>`).join("")}</select></td>
-      <td><input type="text" class="pricing-period-input" data-row-id="${row.id}" value="${escapeHtml(row.period)}" placeholder="Enter period" /></td>
-      <td><input type="text" class="pricing-quantity-input" data-row-id="${row.id}" value="${escapeHtml(row.quantity)}" placeholder="Enter quantity" /></td>
       <td><select class="pricing-material-select" data-row-id="${row.id}"><option value="">Select material</option>${masterDataEntries.map((e) => `<option value="${e.id}" ${e.id === row.materialId ? "selected" : ""}>${escapeHtml(e.description)}</option>`).join("")}</select></td>
+      <td><input type="text" class="pricing-apr-input" data-row-id="${row.id}" value="${escapeHtml(row.aprNumber || "")}" placeholder="Enter APR No." /></td>
+      <td><input type="text" class="pricing-batchno-input" data-row-id="${row.id}" value="${escapeHtml(row.batchNo || "")}" placeholder="Enter batch no." /></td>
+      <td><input type="text" class="pricing-slno-input" data-row-id="${row.id}" value="${escapeHtml(row.slNo || "")}" placeholder="Enter SL No." /></td>
+      <td><textarea class="pricing-period-input complex-value-editor" data-row-id="${row.id}" rows="2" placeholder="Enter period">${escapeHtml(row.period)}</textarea></td>
+      <td><input type="text" class="pricing-quantity-input" data-row-id="${row.id}" value="${escapeHtml(row.quantity)}" placeholder="Enter quantity" /></td>
+      <td><input type="text" class="pricing-unit-rate-input" data-row-id="${row.id}" value="${escapeHtml(row.unitRate || "")}" placeholder="Enter unit rate" /></td>
       <td><select class="pricing-heading-select" data-row-id="${row.id}"><option value="">Select pricing heading</option>${pricingHeadingEntries.map((e) => `<option value="${e.id}" ${e.id === row.pricingHeadingId ? "selected" : ""}>${escapeHtml(e.description)}</option>`).join("")}</select></td>
       <td><textarea class="pricing-value-input complex-value-editor" data-row-id="${row.id}" rows="3" placeholder="Enter value, slabs, conditions, formulas, or text">${escapeHtml(row.value)}</textarea></td>
-      <td><input type="text" class="pricing-remarks-input" data-row-id="${row.id}" value="${escapeHtml(row.remarks)}" placeholder="Enter remarks" /></td>
+      <td><textarea class="pricing-remarks-input complex-value-editor" data-row-id="${row.id}" rows="2" placeholder="Enter remarks">${escapeHtml(row.remarks)}</textarea></td>
       <td class="entry-actions"><button type="button" class="delete-btn" data-action="delete-pricing-data-row" data-id="${row.id}">Delete</button></td>
     </tr>
   `;
@@ -386,34 +389,44 @@ function buildEntryRowHtml(row, index) {
 
 // ── Filter helpers ──────────────────────────────────────────────────────────
 
-const SAVED_COLS = [
-  { key: "aprNumber",   label: "APR No.",               type: "text" },
-  { key: "slNo",        label: "Sl. No.",                type: "text" },
-  { key: "division",    label: "Division",               type: "dropdown" },
-  { key: "state",       label: "State",                  type: "text" },
+const PRICING_DISPLAY_COLS = [
   { key: "financialYear", label: "Financial Year",       type: "text" },
-  { key: "period",      label: "Period",                 type: "text" },
-  { key: "quantity",    label: "Quantity",               type: "text" },
-  { key: "material",    label: "Material Description",   type: "text" },
-  { key: "pricingHeading", label: "Pricing Heading",     type: "text" },
-  { key: "value",       label: "Value / Amount / Text",  type: "text" },
-  { key: "remarks",     label: "Remarks",                type: "text" },
+  { key: "division",      label: "Division",             type: "dropdown" },
+  { key: "state",         label: "State",                type: "text" },
+  { key: "material",      label: "Material Description", type: "text" },
+  { key: "aprNumber",     label: "APR No.",              type: "text" },
+  { key: "batchNo",       label: "BATCH NO.",            type: "text" },
+  { key: "slNo",          label: "SL No.",               type: "text" },
+  { key: "period",        label: "Period",               type: "text" },
+  { key: "quantity",      label: "Quantity",             type: "text" },
+  { key: "unitRate",      label: "UNIT RATE",            type: "text" },
+  { key: "pricingHeading",label: "Pricing Heading",      type: "text" },
+  { key: "value",         label: "Value / Amount / Text", type: "text" },
+  { key: "remarks",       label: "Remarks",              type: "text" },
 ];
 
-function getSavedRowDisplayValues(row, index) {
+const SAVED_COLS = PRICING_DISPLAY_COLS;
+
+function getCommonRowDisplayValues(row, index) {
   return {
     aprNumber:     row.aprNumber || "",
-    slNo:          String(index + 1),
+    batchNo:       row.batchNo || "",
+    slNo:          row.slNo || String(index + 1),
     division:      row.division || "",
     state:         stateNameEntries.find((e) => e.id === row.stateId)?.name || "",
     financialYear: financialYearEntries.find((e) => e.id === row.financialYearId)?.year || "",
     period:        row.period || "",
     quantity:      row.quantity || "",
+    unitRate:      row.unitRate || "",
     material:      masterDataEntries.find((e) => e.id === row.materialId)?.description || "",
     pricingHeading: pricingHeadingEntries.find((e) => e.id === row.pricingHeadingId)?.description || "",
     value:         row.value || "",
     remarks:       row.remarks || "",
   };
+}
+
+function getSavedRowDisplayValues(row, index) {
+  return getCommonRowDisplayValues(row, index);
 }
 
 function getFilteredSavedRecords() {
@@ -573,38 +586,18 @@ function clearColumnFilter(colKey) {
 // ── Report filter helpers ─────────────────────────────────────────────────────
 
 const REPORT_COLS = [
-  { key: "aprNumber",     label: "APR No.",              type: "text" },
-  { key: "slNo",          label: "Sl. No.",              type: "text" },
-  { key: "division",      label: "Division",             type: "dropdown" },
-  { key: "state",         label: "State",                type: "text" },
-  { key: "financialYear", label: "Financial Year",       type: "text" },
-  { key: "period",        label: "Period",               type: "text" },
-  { key: "quantity",      label: "Quantity",             type: "text" },
-  { key: "material",      label: "Material Description", type: "text" },
-  { key: "pricingHeading",label: "Pricing Heading",      type: "text" },
-  { key: "value",         label: "Value / Amount / Text",type: "text" },
-  { key: "remarks",       label: "Remarks",              type: "text" },
-  { key: "completedAt",   label: "Completed On",         type: "text" },
-  { key: "status",        label: "Status",               type: "text" },
-  { key: "completedId",   label: "Completed ID",         type: "text" },
+  ...PRICING_DISPLAY_COLS,
+  { key: "completedAt", label: "Completed On", type: "text" },
+  { key: "status",      label: "Status",       type: "text" },
+  { key: "completedId", label: "Completed ID", type: "text" },
 ];
 
 function getReportRowDisplayValues(row, index) {
   return {
-    aprNumber:     row.aprNumber || "",
-    slNo:          String(index + 1),
-    division:      row.division || "",
-    state:         stateNameEntries.find((e) => e.id === row.stateId)?.name || "",
-    financialYear: financialYearEntries.find((e) => e.id === row.financialYearId)?.year || "",
-    period:        row.period || "",
-    quantity:      row.quantity || "",
-    material:      masterDataEntries.find((e) => e.id === row.materialId)?.description || "",
-    pricingHeading:pricingHeadingEntries.find((e) => e.id === row.pricingHeadingId)?.description || "",
-    value:         row.value || "",
-    remarks:       row.remarks || "",
-    completedAt:   row.completedAt || "",
-    status:        row.status || "Completed",
-    completedId:   row.completedId || row.id,
+    ...getCommonRowDisplayValues(row, index),
+    completedAt: row.completedAt || "",
+    status: row.status || "Completed",
+    completedId: row.completedId || row.id,
   };
 }
 
@@ -725,23 +718,24 @@ function clearReportColumnFilter(colKey) {
 function buildSavedRowHtml(row, index) {
   const isEditing = row.id === editingSavedRowId;
   const isChecked = selectedSavedRowIds.has(row.id);
-  const aprCell = `<td class="apr-no-cell">${escapeHtml(row.aprNumber || "")}</td>`;
   const slCell = `<td class="sl-no-cell"><input type="checkbox" class="saved-row-checkbox" data-row-id="${row.id}" ${isChecked ? "checked" : ""} /></td>`;
   if (isEditing) {
     return `
       <tr>
         ${slCell}
-        ${aprCell}
-        <td class="sl-no-cell"><span>${index + 1}</span></td>
+        <td><select class="saved-financial-year-select" data-row-id="${row.id}"><option value="">Select financial year</option>${financialYearEntries.map((e) => `<option value="${e.id}" ${e.id === row.financialYearId ? "selected" : ""}>${escapeHtml(e.year)}</option>`).join("")}</select></td>
         <td><select class="saved-division-select" data-row-id="${row.id}"><option value="">Select division</option><option value="FERTILIZER" ${row.division === "FERTILIZER" ? "selected" : ""}>FERTILIZER</option><option value="IPD" ${row.division === "IPD" ? "selected" : ""}>IPD</option><option value="TIE-UP" ${row.division === "TIE-UP" ? "selected" : ""}>TIE-UP</option></select></td>
         <td><select class="saved-state-select" data-row-id="${row.id}"><option value="">Select state</option>${stateNameEntries.map((e) => `<option value="${e.id}" ${e.id === row.stateId ? "selected" : ""}>${escapeHtml(e.name)}</option>`).join("")}</select></td>
-        <td><select class="saved-financial-year-select" data-row-id="${row.id}"><option value="">Select financial year</option>${financialYearEntries.map((e) => `<option value="${e.id}" ${e.id === row.financialYearId ? "selected" : ""}>${escapeHtml(e.year)}</option>`).join("")}</select></td>
-        <td><input type="text" class="saved-period-input" data-row-id="${row.id}" value="${escapeHtml(row.period)}" placeholder="Enter period" /></td>
-        <td><input type="text" class="saved-quantity-input" data-row-id="${row.id}" value="${escapeHtml(row.quantity)}" placeholder="Enter quantity" /></td>
         <td><select class="saved-material-select" data-row-id="${row.id}"><option value="">Select material</option>${masterDataEntries.map((e) => `<option value="${e.id}" ${e.id === row.materialId ? "selected" : ""}>${escapeHtml(e.description)}</option>`).join("")}</select></td>
+        <td><input type="text" class="saved-apr-input" data-row-id="${row.id}" value="${escapeHtml(row.aprNumber || "")}" placeholder="Enter APR No." /></td>
+        <td><input type="text" class="saved-batchno-input" data-row-id="${row.id}" value="${escapeHtml(row.batchNo || "")}" placeholder="Enter batch no." /></td>
+        <td><input type="text" class="saved-slno-input" data-row-id="${row.id}" value="${escapeHtml(row.slNo || "")}" placeholder="Enter SL No." /></td>
+        <td><textarea class="saved-period-input complex-value-editor" data-row-id="${row.id}" rows="2" placeholder="Enter period">${escapeHtml(row.period)}</textarea></td>
+        <td><input type="text" class="saved-quantity-input" data-row-id="${row.id}" value="${escapeHtml(row.quantity)}" placeholder="Enter quantity" /></td>
+        <td><input type="text" class="saved-unit-rate-input" data-row-id="${row.id}" value="${escapeHtml(row.unitRate || "")}" placeholder="Enter unit rate" /></td>
         <td><select class="saved-heading-select" data-row-id="${row.id}"><option value="">Select pricing heading</option>${pricingHeadingEntries.map((e) => `<option value="${e.id}" ${e.id === row.pricingHeadingId ? "selected" : ""}>${escapeHtml(e.description)}</option>`).join("")}</select></td>
         <td><textarea class="saved-value-input complex-value-editor" data-row-id="${row.id}" rows="3" placeholder="Enter value, slabs, conditions, formulas, or text">${escapeHtml(row.value)}</textarea></td>
-        <td><input type="text" class="saved-remarks-input" data-row-id="${row.id}" value="${escapeHtml(row.remarks)}" placeholder="Enter remarks" /></td>
+        <td><textarea class="saved-remarks-input complex-value-editor" data-row-id="${row.id}" rows="2" placeholder="Enter remarks">${escapeHtml(row.remarks)}</textarea></td>
         <td class="entry-actions">
           <button type="button" class="add-row-btn" data-action="save-saved-row" data-id="${row.id}">Save</button>
           <button type="button" class="secondary-btn" data-action="cancel-saved-edit">Cancel</button>
@@ -752,14 +746,16 @@ function buildSavedRowHtml(row, index) {
   return `
     <tr>
       ${slCell}
-      ${aprCell}
-      <td class="sl-no-cell"><span>${index + 1}</span></td>
+      <td>${escapeHtml(financialYearEntries.find((e) => e.id === row.financialYearId)?.year || "")}</td>
       <td>${escapeHtml(row.division || "")}</td>
       <td>${escapeHtml(stateNameEntries.find((e) => e.id === row.stateId)?.name || "")}</td>
-      <td>${escapeHtml(financialYearEntries.find((e) => e.id === row.financialYearId)?.year || "")}</td>
+      <td>${escapeHtml(masterDataEntries.find((e) => e.id === row.materialId)?.description || "")}</td>
+      <td>${escapeHtml(row.aprNumber || "")}</td>
+      <td>${escapeHtml(row.batchNo || "")}</td>
+      <td>${escapeHtml(row.slNo || "")}</td>
       <td>${escapeHtml(row.period || "")}</td>
       <td>${escapeHtml(row.quantity || "")}</td>
-      <td>${escapeHtml(masterDataEntries.find((e) => e.id === row.materialId)?.description || "")}</td>
+      <td>${escapeHtml(row.unitRate || "")}</td>
       <td>${escapeHtml(pricingHeadingEntries.find((e) => e.id === row.pricingHeadingId)?.description || "")}</td>
       <td>${formatMultilineText(row.value)}</td>
       <td>${escapeHtml(row.remarks || "")}</td>
@@ -769,15 +765,23 @@ function buildSavedRowHtml(row, index) {
 }
 
 function renderPricingDataTable() {
+  const normalizedRows = normalizePricingDataRows(pricingDataRows);
+  if (normalizedRows.length !== pricingDataRows.length || normalizedRows.some((row, index) => row.id !== pricingDataRows[index]?.id)) {
+    pricingDataRows = normalizedRows;
+    persistPricingDataState();
+  }
   const entryTableHeaders = `
     <tr>
-      <th>Sl. No.</th>
+      <th>Financial Year</th>
       <th>Division</th>
       <th>State</th>
-      <th>Financial Year</th>
+      <th>Material Description</th>
+      <th>APR No.</th>
+      <th>BATCH NO.</th>
+      <th>SL No.</th>
       <th>Period</th>
       <th>Quantity</th>
-      <th>Material Description</th>
+      <th>UNIT RATE</th>
       <th>Pricing Heading</th>
       <th>Value / Amount / Text</th>
       <th>Remarks</th>
@@ -803,7 +807,7 @@ function renderPricingDataTable() {
           <tbody>
             ${pricingDataRows.length
               ? pricingDataRows.map((row, index) => buildEntryRowHtml(row, index)).join("")
-              : '<tr><td colspan="11" class="empty-state">No pricing rows yet. Click Add Row to begin.</td></tr>'}
+              : '<tr><td colspan="13" class="empty-state">No pricing rows yet. Click Add Row to begin.</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -840,7 +844,7 @@ function renderSavedPricingRecordsPanel() {
           <tbody>
             ${filteredRecords.length
               ? filteredRecords.map((row, index) => buildSavedRowHtml(row, index)).join("")
-              : `<tr><td colspan="13" class="empty-state">${savedPricingRecords.length ? "No records match the current filters." : "No saved records yet. Create a record in Pricing Data to see it here."}</td></tr>`}
+              : `<tr><td colspan="15" class="empty-state">${savedPricingRecords.length ? "No records match the current filters." : "No saved records yet. Create a record in Pricing Data to see it here."}</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -861,12 +865,49 @@ function createPricingDataRow() {
     financialYearId: "",
     period: "",
     quantity: "",
+    unitRate: "",
     materialId: "",
     pricingHeadingId: "",
+    aprNumber: "",
+    batchNo: "",
+    slNo: "",
     value: "",
     remarks: "",
   };
 }
+
+function isBlankPricingDataRow(row) {
+  return [
+    row.division,
+    row.stateId,
+    row.financialYearId,
+    row.period,
+    row.quantity,
+    row.unitRate,
+    row.materialId,
+    row.pricingHeadingId,
+    row.aprNumber,
+    row.batchNo,
+    row.slNo,
+    row.value,
+    row.remarks,
+  ].every((value) => value === "" || value === undefined || value === null);
+}
+
+function normalizePricingDataRows(rows) {
+  const safeRows = Array.isArray(rows) ? rows.filter(Boolean) : [];
+  return safeRows.length ? safeRows : [createPricingDataRow()];
+}
+
+function loadPersistedState() {
+  pricingDataRows = normalizePricingDataRows(getStoredValue("pricingDataRows", []));
+  savedPricingRecords = getStoredValue("savedPricingRecords", []);
+  completedPricingRecords = getStoredValue("completedPricingRecords", []);
+  aprCounter = Number(getStoredValue("aprCounter", 0)) || 0;
+  deletionAuditLog = getStoredValue("deletionAuditLog", []);
+}
+
+loadPersistedState();
 
 function persistPricingDataState() {
   setStoredValue("pricingDataRows", pricingDataRows);
@@ -876,15 +917,17 @@ function persistPricingDataState() {
   setStoredValue("deletionAuditLog", deletionAuditLog);
 }
 
-function validatePricingDataRows() {
-  const blankRows = pricingDataRows.filter(
-    (row) => !row.division || !row.stateId || !row.financialYearId || !row.period.trim() || !row.quantity.trim() || !row.materialId || !row.pricingHeadingId || !row.value.trim()
-  );
+function isPricingDataRowComplete(row) {
+  return !isBlankPricingDataRow(row);
+}
 
-  if (blankRows.length) {
+function validatePricingDataRows() {
+  const completedRows = pricingDataRows.filter(isPricingDataRowComplete);
+
+  if (!completedRows.length) {
     return {
       valid: false,
-      message: "Please complete all fields in every row before saving.",
+      message: "Please enter at least one value in a row before saving.",
     };
   }
 
@@ -895,7 +938,7 @@ function validatePricingDataRows() {
   const seen = new Set();
   let duplicateFound = false;
 
-  pricingDataRows.forEach((row) => {
+  completedRows.forEach((row) => {
     const stateName = stateMap.get(row.stateId) || "";
     const financialYear = financialYearMap.get(row.financialYearId) || "";
     const materialDescription = materialMap.get(row.materialId) || "";
@@ -942,7 +985,7 @@ function updateSavedPricingRow(rowId, field, value) {
 }
 
 function handleAddPricingDataRow() {
-  pricingDataRows.push(createPricingDataRow());
+  pricingDataRows = [...pricingDataRows, createPricingDataRow()];
   pricingDataValidationMessage = "";
   persistPricingDataState();
   renderPricingDataTable();
@@ -953,7 +996,7 @@ function handleDeletePricingDataRow(rowId) {
   if (!confirmed) return;
   pricingDataRows = pricingDataRows.filter((row) => row.id !== rowId);
   if (pricingDataRows.length === 0) {
-    pricingDataRows.push(createPricingDataRow());
+    pricingDataRows = [createPricingDataRow()];
   }
   pricingDataValidationMessage = "";
   persistPricingDataState();
@@ -968,14 +1011,23 @@ function handleSavePricingDataRows() {
     return;
   }
 
+  const rowsToSave = pricingDataRows.filter(isPricingDataRowComplete);
+  if (!rowsToSave.length) {
+    pricingDataValidationMessage = "Please complete at least one row before saving.";
+    renderPricingDataTable();
+    return;
+  }
+
   aprCounter += 1;
   const batchAprNumber = `APR-${aprCounter}`;
   savedPricingRecords = [
     ...savedPricingRecords,
-    ...pricingDataRows.map((row) => ({ ...row, aprNumber: batchAprNumber })),
+    ...rowsToSave.map((row) => ({ ...row, aprNumber: batchAprNumber })),
   ];
-  pricingDataRows = [createPricingDataRow()];
-  pricingDataValidationMessage = "Row saved successfully.";
+
+  const remainingRows = pricingDataRows.filter((row) => !isPricingDataRowComplete(row));
+  pricingDataRows = [...remainingRows, createPricingDataRow()];
+  pricingDataValidationMessage = `${rowsToSave.length} row${rowsToSave.length > 1 ? "s" : ""} saved successfully.`;
   persistPricingDataState();
   renderPricingDataTable();
 }
@@ -1050,7 +1102,7 @@ function renderReportsPanel() {
   const adminBtnLabel = isAdminAuthenticated ? "Admin Mode: ON" : "Admin Login";
   const filteredReports = getFilteredReportRecords();
   const hasActiveFilters = Object.values(reportRecordFilters).some((f) => f?.active);
-  const colCount = isAdminAuthenticated ? 15 : 14;
+  const colCount = isAdminAuthenticated ? 17 : 16;
 
   const headerCells = REPORT_COLS.map((col) => {
     const isActive = reportRecordFilters[col.key]?.active;
@@ -1081,25 +1133,30 @@ function renderReportsPanel() {
           </thead>
           <tbody>
             ${filteredReports.length
-              ? filteredReports.map((row, index) => `
-                  <tr>
-                    <td class="apr-no-cell">${escapeHtml(row.aprNumber || "")}</td>
-                    <td>${index + 1}</td>
-                    <td>${escapeHtml(row.division || "")}</td>
-                    <td>${escapeHtml(stateNameEntries.find((e) => e.id === row.stateId)?.name || "")}</td>
-                    <td>${escapeHtml(financialYearEntries.find((e) => e.id === row.financialYearId)?.year || "")}</td>
-                    <td>${escapeHtml(row.period || "")}</td>
-                    <td>${escapeHtml(row.quantity || "")}</td>
-                    <td>${escapeHtml(masterDataEntries.find((e) => e.id === row.materialId)?.description || "")}</td>
-                    <td>${escapeHtml(pricingHeadingEntries.find((e) => e.id === row.pricingHeadingId)?.description || "")}</td>
-                    <td>${formatMultilineText(row.value)}</td>
-                    <td>${escapeHtml(row.remarks || "")}</td>
-                    <td>${escapeHtml(row.completedAt || "")}</td>
-                    <td>${escapeHtml(row.status || "Completed")}</td>
-                    <td>${escapeHtml(row.completedId || row.id)}</td>
-                    ${isAdminAuthenticated ? `<td class="entry-actions"><button type="button" class="delete-btn" data-action="admin-delete-report" data-id="${row.id}">Delete</button></td>` : ""}
-                  </tr>
-                `).join("")
+              ? filteredReports.map((row, index) => {
+                  const display = getReportRowDisplayValues(row, index);
+                  return `
+                    <tr>
+                      <td>${escapeHtml(display.financialYear)}</td>
+                      <td>${escapeHtml(display.division)}</td>
+                      <td>${escapeHtml(display.state)}</td>
+                      <td>${escapeHtml(display.material)}</td>
+                      <td>${escapeHtml(display.aprNumber)}</td>
+                      <td>${escapeHtml(display.batchNo)}</td>
+                      <td>${escapeHtml(display.slNo)}</td>
+                      <td>${escapeHtml(display.period)}</td>
+                      <td>${escapeHtml(display.quantity)}</td>
+                      <td>${escapeHtml(display.unitRate)}</td>
+                      <td>${escapeHtml(display.pricingHeading)}</td>
+                      <td>${formatMultilineText(display.value)}</td>
+                      <td>${escapeHtml(display.remarks)}</td>
+                      <td>${escapeHtml(display.completedAt)}</td>
+                      <td>${escapeHtml(display.status)}</td>
+                      <td>${escapeHtml(display.completedId)}</td>
+                      ${isAdminAuthenticated ? `<td class="entry-actions"><button type="button" class="delete-btn" data-action="admin-delete-report" data-id="${row.id}">Delete</button></td>` : ""}
+                    </tr>
+                  `;
+                }).join("")
               : `<tr><td colspan="${colCount}" class="empty-state">${completedPricingRecords.length ? "No records match the current filters." : "No completed records available yet."}</td></tr>`}
           </tbody>
         </table>
@@ -1399,10 +1456,8 @@ pricingDataButton.addEventListener("click", () => {
   currentAppView = "pricing";
   document.body.classList.add("pricing-view-active");
   masterDataPanel.classList.remove("hidden");
-  if (pricingDataRows.length === 0) {
-    pricingDataRows.push(createPricingDataRow());
-    persistPricingDataState();
-  }
+  pricingDataRows = normalizePricingDataRows(pricingDataRows);
+  persistPricingDataState();
   renderPricingDataTable();
 });
 
@@ -1601,6 +1656,10 @@ masterDataPanel.addEventListener("input", (event) => {
     updatePricingDataRow(event.target.dataset.rowId, "period", event.target.value);
   } else if (event.target.classList.contains("pricing-quantity-input")) {
     updatePricingDataRow(event.target.dataset.rowId, "quantity", event.target.value);
+  } else if (event.target.classList.contains("pricing-unit-rate-input")) {
+    updatePricingDataRow(event.target.dataset.rowId, "unitRate", event.target.value);
+  } else if (event.target.classList.contains("pricing-batchno-input")) {
+    updatePricingDataRow(event.target.dataset.rowId, "batchNo", event.target.value);
   } else if (event.target.classList.contains("pricing-value-input")) {
     updatePricingDataRow(event.target.dataset.rowId, "value", event.target.value);
   } else if (event.target.classList.contains("pricing-remarks-input")) {
@@ -1609,6 +1668,16 @@ masterDataPanel.addEventListener("input", (event) => {
     updateSavedPricingRow(event.target.dataset.rowId, "period", event.target.value);
   } else if (event.target.classList.contains("saved-quantity-input")) {
     updateSavedPricingRow(event.target.dataset.rowId, "quantity", event.target.value);
+  } else if (event.target.classList.contains("saved-unit-rate-input")) {
+    updateSavedPricingRow(event.target.dataset.rowId, "unitRate", event.target.value);
+  } else if (event.target.classList.contains("saved-apr-input")) {
+    updateSavedPricingRow(event.target.dataset.rowId, "aprNumber", event.target.value);
+  } else if (event.target.classList.contains("saved-batchno-input")) {
+    updateSavedPricingRow(event.target.dataset.rowId, "batchNo", event.target.value);
+  } else if (event.target.classList.contains("saved-slno-input")) {
+    updateSavedPricingRow(event.target.dataset.rowId, "aprNumber", event.target.value);
+  } else if (event.target.classList.contains("saved-slno-input")) {
+    updateSavedPricingRow(event.target.dataset.rowId, "slNo", event.target.value);
   } else if (event.target.classList.contains("saved-value-input")) {
     updateSavedPricingRow(event.target.dataset.rowId, "value", event.target.value);
   } else if (event.target.classList.contains("saved-remarks-input")) {
