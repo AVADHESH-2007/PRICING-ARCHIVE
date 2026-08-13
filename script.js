@@ -17,6 +17,10 @@ const masterDataButton = document.getElementById("masterDataBtn");
 const pricingDataButton = document.getElementById("pricingDataBtn");
 const savedPricingRecordsButton = document.getElementById("savedPricingRecordsBtn");
 const reportsButton = document.getElementById("reportsBtn");
+const misButton = document.getElementById("misBtn");
+const backupDatabaseButton = document.getElementById("backupDatabaseBtn");
+const restoreDatabaseButton = document.getElementById("restoreDatabaseBtn");
+const restoreDatabaseInput = document.getElementById("restoreDatabaseInput");
 const masterDataPanel = document.getElementById("masterDataPanel");
 
 function getStoredValue(key, fallback) {
@@ -24,6 +28,7 @@ function getStoredValue(key, fallback) {
     const storedValue = window.localStorage.getItem(key);
     return storedValue ? JSON.parse(storedValue) : fallback;
   } catch (error) {
+    console.error(`Unable to read ${key} from local storage.`, error);
     return fallback;
   }
 }
@@ -31,16 +36,18 @@ function getStoredValue(key, fallback) {
 function setStoredValue(key, value) {
   try {
     window.localStorage.setItem(key, JSON.stringify(value));
+    return true;
   } catch (error) {
-    // Ignore storage errors.
+    console.error(`Unable to save ${key} to local storage.`, error);
+    return false;
   }
 }
 
-let masterDataEntries = [];
-let pricingHeadingEntries = [];
-let stateNameEntries = [];
-let financialYearEntries = [];
-let unitRateEntries = [];
+let masterDataEntries = getStoredValue("masterDataEntries", []);
+let pricingHeadingEntries = getStoredValue("pricingHeadingEntries", []);
+let stateNameEntries = getStoredValue("stateNameEntries", []);
+let financialYearEntries = getStoredValue("financialYearEntries", []);
+let unitRateEntries = getStoredValue("unitRateEntries", []);
 let pricingDataRows = [];
 let savedPricingRecords = getStoredValue("savedPricingRecords", []);
 let completedPricingRecords = getStoredValue("completedPricingRecords", []);
@@ -62,6 +69,73 @@ let editingSavedRowId = null;
 let savedRecordFilters = {};
 let reportRecordFilters = {};
 let activeReportFilterCol = null;
+let misFilters = {};
+let misDrillDown = [];
+let misTableSearch = "";
+let misTableSort = { key: "financialYear", asc: true };
+let misTablePage = 1;
+let misComparisonKey = "division";
+let misExpandedNodes = new Set();
+let databaseSyncQueue = Promise.resolve();
+let databaseAvailable = false;
+
+function getApplicationState() {
+  return { masterDataEntries, pricingHeadingEntries, stateNameEntries, financialYearEntries, unitRateEntries, pricingDataRows, savedPricingRecords, completedPricingRecords, aprCounter, deletionAuditLog };
+}
+
+function applyApplicationState(state) {
+  masterDataEntries = Array.isArray(state.masterDataEntries) ? state.masterDataEntries : [];
+  pricingHeadingEntries = Array.isArray(state.pricingHeadingEntries) ? state.pricingHeadingEntries : [];
+  stateNameEntries = Array.isArray(state.stateNameEntries) ? state.stateNameEntries : [];
+  financialYearEntries = Array.isArray(state.financialYearEntries) ? state.financialYearEntries : [];
+  unitRateEntries = Array.isArray(state.unitRateEntries) ? state.unitRateEntries : [];
+  pricingDataRows = normalizePricingDataRows(state.pricingDataRows || []);
+  savedPricingRecords = Array.isArray(state.savedPricingRecords) ? state.savedPricingRecords : [];
+  completedPricingRecords = Array.isArray(state.completedPricingRecords) ? state.completedPricingRecords : [];
+  aprCounter = Number(state.aprCounter) || 0;
+  deletionAuditLog = Array.isArray(state.deletionAuditLog) ? state.deletionAuditLog : [];
+}
+
+function queueDatabaseSave() {
+  if (!databaseAvailable) return;
+  const snapshot = JSON.stringify(getApplicationState());
+  databaseSyncQueue = databaseSyncQueue.then(async () => {
+    const response = await fetch("/api/state", { method: "POST", headers: { "Content-Type": "application/json" }, body: snapshot });
+    if (!response.ok) throw new Error(`Database save failed (${response.status}).`);
+    const result = await response.json();
+    if (!result.ok) throw new Error(result.error || "Database save failed.");
+  }).catch((error) => {
+    console.error("SQLite database synchronization failed.", error);
+    pricingDataValidationMessage = "Database synchronization failed. Your browser copy is still available; please check that the local database server is running.";
+  });
+}
+
+async function initialiseDatabaseStorage() {
+  if (location.protocol === "file:") {
+    console.warn("SQLite storage requires the local server. Start it with: python backend/app.py");
+    return;
+  }
+  try {
+    const response = await fetch("/api/state");
+    if (!response.ok) throw new Error(`Database unavailable (${response.status}).`);
+    const result = await response.json();
+    databaseAvailable = true;
+    if (result.hasData) applyApplicationState(result.state);
+    else queueDatabaseSave(); // One-time migration of the existing browser state.
+    persistPricingDataState();
+  } catch (error) {
+    console.error("Unable to initialise local SQLite storage.", error);
+    pricingDataValidationMessage = "Local database unavailable. Start the application with python backend/app.py to use SQLite storage.";
+  }
+}
+
+const MIS_FILTERS = [
+  { key: "financialYear", label: "Financial Year" }, { key: "division", label: "Division" },
+  { key: "state", label: "State" }, { key: "material", label: "Material Description" },
+  { key: "aprNumber", label: "APR No." }, { key: "batchNo", label: "Batch no." }, { key: "period", label: "Period" },
+  { key: "genMkfedPvt", label: "GEN/MKFED/PVT." }, { key: "pricingHeading", label: "Pricing Heading" },
+  { key: "remarks", label: "Remarks" }, { key: "completedAt", label: "Completed On" },
+];
 
 function escapeHtml(value) {
   return String(value)
@@ -442,9 +516,9 @@ function buildEntryRowHtml(row, index) {
       <td><select class="pricing-state-select" data-row-id="${row.id}"><option value="">Select state</option>${stateNameEntries.map((e) => `<option value="${e.id}" ${e.id === row.stateId ? "selected" : ""}>${escapeHtml(e.name)}</option>`).join("")}</select></td>
       <td><select class="pricing-material-select" data-row-id="${row.id}"><option value="">Select material</option>${masterDataEntries.map((e) => `<option value="${e.id}" ${e.id === row.materialId ? "selected" : ""}>${escapeHtml(e.description)}</option>`).join("")}</select></td>
       <td><input type="text" class="pricing-batchno-input" data-row-id="${row.id}" value="${escapeHtml(row.batchNo || "")}" placeholder="Enter batch no." /></td>
-      <td><input type="text" class="pricing-slno-input" data-row-id="${row.id}" value="${escapeHtml(row.slNo || "")}" placeholder="Enter SL No." /></td>
+      <td class="auto-slno-cell">${index + 1}</td>
       <td><textarea class="pricing-period-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter period">${escapeHtml(row.period)}</textarea></td>
-      <td><input type="text" class="pricing-quantity-input" data-row-id="${row.id}" value="${escapeHtml(row.quantity)}" placeholder="Enter quantity" /></td>
+      <td><select class="pricing-gen-mkfed-pvt-select" data-row-id="${row.id}"><option value="">Select classification</option><option value="GENERAL" ${row.genMkfedPvt === "GENERAL" ? "selected" : ""}>GENERAL</option><option value="MARKFED" ${row.genMkfedPvt === "MARKFED" ? "selected" : ""}>MARKFED</option><option value="PRIVATE" ${row.genMkfedPvt === "PRIVATE" ? "selected" : ""}>PRIVATE</option></select></td>
       <td><select class="pricing-unit-rate-select" data-row-id="${row.id}"><option value="">Select unit rate</option>${unitRateEntries.map((e) => `<option value="${escapeHtml(e.name)}" ${row.unitRate === e.name ? "selected" : ""}>${escapeHtml(e.name)}</option>`).join("")}</select></td>
       <td><select class="pricing-heading-select" data-row-id="${row.id}"><option value="">Select pricing heading</option>${pricingHeadingEntries.map((e) => `<option value="${e.id}" ${e.id === row.pricingHeadingId ? "selected" : ""}>${escapeHtml(e.description)}</option>`).join("")}</select></td>
       <td><textarea class="pricing-value-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter value, slabs, conditions, formulas, or text">${escapeHtml(row.value)}</textarea></td>
@@ -465,7 +539,7 @@ const PRICING_DISPLAY_COLS = [
   { key: "batchNo",       label: "BATCH NO.",            type: "text" },
   { key: "slNo",          label: "SL No.",               type: "text" },
   { key: "period",        label: "Period",               type: "text" },
-  { key: "quantity",      label: "Quantity",             type: "text" },
+  { key: "genMkfedPvt",   label: "GEN/MKFED/PVT.",        type: "dropdown" },
   { key: "unitRate",      label: "UNIT RATE",            type: "text" },
   { key: "pricingHeading",label: "Pricing Heading",      type: "text" },
   { key: "value",         label: "Value / Amount / Text", type: "text" },
@@ -483,7 +557,7 @@ function getCommonRowDisplayValues(row, index) {
     state:         stateNameEntries.find((e) => e.id === row.stateId)?.name || "",
     financialYear: financialYearEntries.find((e) => e.id === row.financialYearId)?.year || "",
     period:        row.period || "",
-    quantity:      row.quantity || "",
+    genMkfedPvt:   row.genMkfedPvt || "",
     unitRate:      row.unitRate || "",
     material:      masterDataEntries.find((e) => e.id === row.materialId)?.description || "",
     pricingHeading: pricingHeadingEntries.find((e) => e.id === row.pricingHeadingId)?.description || "",
@@ -660,8 +734,14 @@ const REPORT_COLS = [
 ];
 
 function getReportRowDisplayValues(row, index) {
+  const reportIndex = completedPricingRecords.findIndex((record) => record.id === row.id);
+  const aprNumber = row.aprNumber || "";
+  const aprSerialNumber = reportIndex >= 0
+    ? completedPricingRecords.slice(0, reportIndex + 1).filter((record) => (record.aprNumber || "") === aprNumber).length
+    : index + 1;
   return {
     ...getCommonRowDisplayValues(row, index),
+    slNo: String(aprSerialNumber),
     completedAt: row.completedAt || "",
     status: row.status || "Completed",
     completedId: row.completedId || row.id,
@@ -798,7 +878,7 @@ function buildSavedRowHtml(row, index) {
         <td><input type="text" class="saved-batchno-input" data-row-id="${row.id}" value="${escapeHtml(row.batchNo || "")}" placeholder="Enter batch no." /></td>
         <td><input type="text" class="saved-slno-input" data-row-id="${row.id}" value="${escapeHtml(row.slNo || "")}" placeholder="Enter SL No." /></td>
         <td><textarea class="saved-period-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter period">${escapeHtml(row.period)}</textarea></td>
-        <td><input type="text" class="saved-quantity-input" data-row-id="${row.id}" value="${escapeHtml(row.quantity)}" placeholder="Enter quantity" /></td>
+        <td><select class="saved-gen-mkfed-pvt-select" data-row-id="${row.id}"><option value="">Select classification</option><option value="GENERAL" ${row.genMkfedPvt === "GENERAL" ? "selected" : ""}>GENERAL</option><option value="MARKFED" ${row.genMkfedPvt === "MARKFED" ? "selected" : ""}>MARKFED</option><option value="PRIVATE" ${row.genMkfedPvt === "PRIVATE" ? "selected" : ""}>PRIVATE</option></select></td>
         <td><input type="text" class="saved-unit-rate-input" data-row-id="${row.id}" value="${escapeHtml(row.unitRate || "")}" placeholder="Enter unit rate" /></td>
         <td><select class="saved-heading-select" data-row-id="${row.id}"><option value="">Select pricing heading</option>${pricingHeadingEntries.map((e) => `<option value="${e.id}" ${e.id === row.pricingHeadingId ? "selected" : ""}>${escapeHtml(e.description)}</option>`).join("")}</select></td>
         <td><textarea class="saved-value-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter value, slabs, conditions, formulas, or text">${escapeHtml(row.value)}</textarea></td>
@@ -821,7 +901,7 @@ function buildSavedRowHtml(row, index) {
       <td>${escapeHtml(row.batchNo || "")}</td>
       <td>${escapeHtml(row.slNo || "")}</td>
       <td>${escapeHtml(row.period || "")}</td>
-      <td>${escapeHtml(row.quantity || "")}</td>
+      <td>${escapeHtml(row.genMkfedPvt || "Not classified")}</td>
       <td>${escapeHtml(row.unitRate || "")}</td>
       <td>${escapeHtml(pricingHeadingEntries.find((e) => e.id === row.pricingHeadingId)?.description || "")}</td>
       <td>${formatMultilineText(row.value)}</td>
@@ -844,9 +924,9 @@ function renderPricingDataTable() {
       <th>State</th>
       <th>Material Description</th>
       <th>BATCH NO.</th>
-      <th>SL No.</th>
+      <th>Sl. No.</th>
       <th>Period</th>
-      <th>Quantity</th>
+      <th>GEN/MKFED/PVT.</th>
       <th>UNIT RATE</th>
       <th>Pricing Heading</th>
       <th>Value / Amount / Text</th>
@@ -895,6 +975,7 @@ function renderSavedPricingRecordsPanel() {
         <h2>SAVED PRICING RECORDS</h2>
         <p>Review, edit, filter, or complete saved pricing records.</p>
       </div>
+      ${pricingDataValidationMessage ? `<div class="validation-message">${escapeHtml(pricingDataValidationMessage)}</div>` : ""}
       <div class="saved-records-header">
         <div class="table-actions">
           ${hasActiveFilters ? '<button type="button" class="secondary-btn" id="clearAllFiltersBtn">Clear All Filters</button>' : ""}
@@ -930,7 +1011,7 @@ function createPricingDataRow() {
     stateId: "",
     financialYearId: "",
     period: "",
-    quantity: "",
+    genMkfedPvt: "",
     unitRate: "",
     materialId: "",
     pricingHeadingId: "",
@@ -948,13 +1029,12 @@ function isBlankPricingDataRow(row) {
     row.stateId,
     row.financialYearId,
     row.period,
-    row.quantity,
+    row.genMkfedPvt,
     row.unitRate,
     row.materialId,
     row.pricingHeadingId,
     row.aprNumber,
     row.batchNo,
-    row.slNo,
     row.value,
     row.remarks,
   ].every((value) => value === "" || value === undefined || value === null);
@@ -966,6 +1046,10 @@ function normalizePricingDataRows(rows) {
 }
 
 function loadPersistedState() {
+  masterDataEntries = getStoredValue("masterDataEntries", masterDataEntries);
+  pricingHeadingEntries = getStoredValue("pricingHeadingEntries", pricingHeadingEntries);
+  stateNameEntries = getStoredValue("stateNameEntries", stateNameEntries);
+  financialYearEntries = getStoredValue("financialYearEntries", financialYearEntries);
   pricingDataRows = normalizePricingDataRows(getStoredValue("pricingDataRows", []));
   savedPricingRecords = getStoredValue("savedPricingRecords", []);
   completedPricingRecords = getStoredValue("completedPricingRecords", []);
@@ -977,12 +1061,20 @@ function loadPersistedState() {
 loadPersistedState();
 
 function persistPricingDataState() {
-  setStoredValue("pricingDataRows", pricingDataRows);
-  setStoredValue("savedPricingRecords", savedPricingRecords);
-  setStoredValue("completedPricingRecords", completedPricingRecords);
-  setStoredValue("aprCounter", aprCounter);
-  setStoredValue("deletionAuditLog", deletionAuditLog);
-  setStoredValue("unitRateEntries", unitRateEntries);
+  const stored = [
+    setStoredValue("masterDataEntries", masterDataEntries),
+    setStoredValue("pricingHeadingEntries", pricingHeadingEntries),
+    setStoredValue("stateNameEntries", stateNameEntries),
+    setStoredValue("financialYearEntries", financialYearEntries),
+    setStoredValue("pricingDataRows", pricingDataRows),
+    setStoredValue("savedPricingRecords", savedPricingRecords),
+    setStoredValue("completedPricingRecords", completedPricingRecords),
+    setStoredValue("aprCounter", aprCounter),
+    setStoredValue("deletionAuditLog", deletionAuditLog),
+    setStoredValue("unitRateEntries", unitRateEntries),
+  ].every(Boolean);
+  queueDatabaseSave();
+  return stored;
 }
 
 function isPricingDataRowComplete(row) {
@@ -1031,7 +1123,8 @@ function validatePricingDataRows() {
 }
 
 function validateSavedRow(row) {
-  if (!row.division || !row.stateId || !row.financialYearId || !row.period.trim() || !row.quantity.trim() || !row.materialId || !row.pricingHeadingId || !row.value.trim()) {
+  const validClassifications = ["GENERAL", "MARKFED", "PRIVATE"];
+  if (!row || !row.division || !row.stateId || !row.financialYearId || !String(row.period || "").trim() || !validClassifications.includes(row.genMkfedPvt) || !row.materialId || !row.pricingHeadingId || !String(row.value || "").trim()) {
     return { valid: false, message: "Please complete all fields before saving." };
   }
   return { valid: true, message: "" };
@@ -1090,7 +1183,7 @@ function handleSavePricingDataRows() {
   const batchAprNumber = `APR-${aprCounter}`;
   savedPricingRecords = [
     ...savedPricingRecords,
-    ...rowsToSave.map((row) => ({ ...row, aprNumber: batchAprNumber })),
+    ...rowsToSave.map((row, index) => ({ ...row, aprNumber: batchAprNumber, slNo: String(index + 1) })),
   ];
 
   const remainingRows = pricingDataRows.filter((row) => !isPricingDataRowComplete(row));
@@ -1101,43 +1194,69 @@ function handleSavePricingDataRows() {
 }
 
 function handleCompleteSavedRows() {
-  if (selectedSavedRowIds.size === 0) {
+  const idsToComplete = [...selectedSavedRowIds];
+  if (idsToComplete.length === 0) {
     pricingDataValidationMessage = "Please select at least one record to complete.";
     renderSavedPricingRecordsPanel();
     return;
   }
 
-  const idsToComplete = [...selectedSavedRowIds];
-  const invalidRows = idsToComplete
-    .map((id) => savedPricingRecords.find((r) => r.id === id))
-    .filter((row) => row && !validateSavedRow(row).valid);
+  try {
+    const selectedRecords = idsToComplete.map((id) => savedPricingRecords.find((record) => record.id === id));
+    const missingIds = idsToComplete.filter((id, index) => !selectedRecords[index]);
+    if (missingIds.length) {
+      console.error("Completion failed because selected record IDs are no longer present.", { missingIds, idsToComplete, savedPricingRecords });
+      selectedSavedRowIds.clear();
+      pricingDataValidationMessage = "Unable to complete the selected records because the selection is no longer current. Please select the records again.";
+      renderSavedPricingRecordsPanel();
+      return;
+    }
 
-  if (invalidRows.length) {
-    pricingDataValidationMessage = "One or more selected records have incomplete fields. Please fix them before completing.";
-    renderSavedPricingRecordsPanel();
-    return;
-  }
+    const invalidRows = selectedRecords.filter((row) => !validateSavedRow(row).valid);
+    if (invalidRows.length) {
+      console.warn("Completion blocked: selected records failed validation.", invalidRows);
+      pricingDataValidationMessage = "One or more selected records are incomplete or do not have a valid GEN/MKFED/PVT. classification. Please fix them before completing.";
+      renderSavedPricingRecordsPanel();
+      return;
+    }
 
-  const now = new Date().toLocaleString();
-  const newCompleted = idsToComplete.map((id) => {
-    const row = savedPricingRecords.find((r) => r.id === id);
-    return {
+    const now = new Date();
+    const completionStamp = now.getTime().toString(36).toUpperCase();
+    const newCompleted = selectedRecords.map((row, index) => ({
       ...row,
-      id: `completed-pricing-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      id: `completed-pricing-${completionStamp}-${index + 1}-${Math.random().toString(16).slice(2)}`,
       originalId: row.id,
-      completedAt: now,
-      completedId: `CMP-${Date.now().toString(36).toUpperCase()}`,
+      completedAt: now.toLocaleString(),
+      completedId: `CMP-${completionStamp}-${index + 1}-${Math.random().toString(16).slice(2, 6).toUpperCase()}`,
       status: "Completed",
-    };
-  });
+    }));
+    const selectedIdSet = new Set(idsToComplete);
+    const nextCompletedRecords = [...completedPricingRecords, ...newCompleted];
+    const nextSavedRecords = savedPricingRecords.filter((record) => !selectedIdSet.has(record.id));
+    const previousCompletedRecords = completedPricingRecords;
+    const previousSavedRecords = savedPricingRecords;
 
-  completedPricingRecords = [...completedPricingRecords, ...newCompleted];
-  savedPricingRecords = savedPricingRecords.filter((r) => !selectedSavedRowIds.has(r.id));
-  selectedSavedRowIds.clear();
-  editingSavedRowId = null;
-  pricingDataValidationMessage = `${newCompleted.length} record${newCompleted.length > 1 ? "s" : ""} marked as completed.`;
-  persistPricingDataState();
-  renderSavedPricingRecordsPanel();
+    completedPricingRecords = nextCompletedRecords;
+    savedPricingRecords = nextSavedRecords;
+    if (!persistPricingDataState()) {
+      completedPricingRecords = previousCompletedRecords;
+      savedPricingRecords = previousSavedRecords;
+      const rollbackPersisted = persistPricingDataState();
+      console.error("Completion rolled back because the updated records could not be persisted.", { rollbackPersisted });
+      pricingDataValidationMessage = "Unable to complete the selected records. Please check available browser storage and try again.";
+      renderSavedPricingRecordsPanel();
+      return;
+    }
+
+    selectedSavedRowIds.clear();
+    editingSavedRowId = null;
+    pricingDataValidationMessage = `${newCompleted.length} record${newCompleted.length > 1 ? "s" : ""} marked as completed.`;
+    renderSavedPricingRecordsPanel();
+  } catch (error) {
+    console.error("Unexpected error while completing saved pricing records.", error);
+    pricingDataValidationMessage = "Unable to complete the selected records. Please check the selected records and try again.";
+    renderSavedPricingRecordsPanel();
+  }
 }
 
 function handleEditCompletedPricingRecord(recordId) {
@@ -1213,7 +1332,7 @@ function renderReportsPanel() {
                       <td>${escapeHtml(display.batchNo)}</td>
                       <td>${escapeHtml(display.slNo)}</td>
                       <td>${escapeHtml(display.period)}</td>
-                      <td>${escapeHtml(display.quantity)}</td>
+                      <td>${escapeHtml(display.genMkfedPvt || "Not classified")}</td>
                       <td>${escapeHtml(display.unitRate)}</td>
                       <td>${escapeHtml(display.pricingHeading)}</td>
                       <td>${formatMultilineText(display.value)}</td>
@@ -1231,6 +1350,92 @@ function renderReportsPanel() {
       </div>
     </div>
   `;
+}
+
+function renderMisPanel() {
+  const source = completedPricingRecords.map((row, index) => ({ row, values: getReportRowDisplayValues(row, index) }));
+  const optionsFor = (key) => key === "genMkfedPvt"
+    ? ["GENERAL", "MARKFED", "PRIVATE"]
+    : [...new Set(source.map((item) => item.values[key]).filter((value) => value !== "" && value != null))].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+  const activeFilters = MIS_FILTERS.reduce((filters, filter) => ({ ...filters, [filter.key]: misFilters[filter.key] || [] }), {});
+  const filtered = source.filter((item) => MIS_FILTERS.every((filter) => {
+    const selected = activeFilters[filter.key];
+    return !selected.length || selected.includes(String(item.values[filter.key] || ""));
+  })).filter((item) => misDrillDown.every((drill) => String(item.values[drill.key] || "") === drill.value));
+  const records = filtered.map((item) => item.values);
+  const values = records.map((item) => misNumber(item.value)).filter((value) => Number.isFinite(value));
+  const aprs = new Set(records.map((item) => item.aprNumber).filter(Boolean));
+  const groupBy = (key) => Object.entries(records.reduce((groups, item) => {
+    const name = item[key] || "Not specified";
+    if (!groups[name]) groups[name] = { count: 0, value: 0 };
+    groups[name].count += 1; groups[name].value += misNumber(item.value);
+    return groups;
+  }, {})).map(([label, stats]) => ({ label, ...stats })).sort((a, b) => b.count - a.count);
+  const divisionGroups = groupBy("division"), stateGroups = groupBy("state"), materialGroups = groupBy("material"), classificationGroups = groupBy("genMkfedPvt"), headingGroups = groupBy("pricingHeading"), yearGroups = groupBy("financialYear"), periodGroups = groupBy("period");
+  const comparisonGroups = groupBy(misComparisonKey);
+  const comparison = comparisonGroups.length >= 2 ? { first: comparisonGroups[0], second: comparisonGroups[1] } : null;
+  const variance = comparison ? comparison.first.count - comparison.second.count : 0;
+  const variancePct = comparison && comparison.second.count ? (variance / comparison.second.count) * 100 : 0;
+  const filterHtml = MIS_FILTERS.map((filter) => {
+    const options = optionsFor(filter.key), selected = activeFilters[filter.key];
+    const selectedCount = selected.length;
+    return `<div class="mis-filter" data-mis-filter-wrap="${filter.key}"><label>${filter.label}</label><button type="button" class="mis-filter-toggle" data-mis-filter-toggle="${filter.key}" aria-expanded="false">${selectedCount ? `${selectedCount} selected` : "All values"}<span>⌄</span></button><div class="mis-filter-menu" id="misFilterMenu-${filter.key}" hidden><input class="mis-filter-search" data-mis-search="${filter.key}" placeholder="Search ${filter.label}" /><div class="mis-filter-menu-actions"><button type="button" data-mis-select-all="${filter.key}">Select All</button><button type="button" data-mis-clear-filter="${filter.key}">Clear</button></div><div class="mis-filter-options">${options.map((option) => `<label data-mis-option="${filter.key}"><input type="checkbox" data-mis-filter="${filter.key}" value="${escapeHtml(option)}" ${selected.includes(String(option)) ? "checked" : ""}> <span>${escapeHtml(option)}</span></label>`).join("") || '<span class="mis-no-options">No report data available</span>'}</div></div></div>`;
+  }).join("");
+  const metric = (label, value, note, drillKey) => `<button type="button" class="mis-kpi mis-drill" data-mis-drill-key="${drillKey || ""}" data-mis-drill-value=""><span>${label}</span><strong>${value}</strong><small>${note}</small></button>`;
+  const chart = (title, groups, drillKey, line = false) => `<section class="mis-chart"><h3>${title}</h3>${misChart(groups, drillKey, line)}</section>`;
+  const tableRows = records.filter((record) => Object.values(record).join(" ").toLowerCase().includes(misTableSearch.toLowerCase())).sort((a, b) => {
+    const left = String(a[misTableSort.key] || ""), right = String(b[misTableSort.key] || "");
+    const result = left.localeCompare(right, undefined, { numeric: true }); return misTableSort.asc ? result : -result;
+  });
+  const pageSize = 12, pageCount = Math.max(1, Math.ceil(tableRows.length / pageSize));
+  misTablePage = Math.min(misTablePage, pageCount);
+  const pageRows = tableRows.slice((misTablePage - 1) * pageSize, misTablePage * pageSize);
+  const columns = REPORT_COLS.map((column) => column.key);
+  const labels = Object.fromEntries(REPORT_COLS.map((column) => [column.key, column.label]));
+
+  masterDataPanel.innerHTML = `
+    <div class="master-data-card mis-dashboard">
+      <div class="panel-heading"><h2>MIS ANALYTICAL DASHBOARD</h2><p>Live analysis of Reports data. Select multiple values with Ctrl / Cmd; blank selections include all values.</p></div>
+      <section class="mis-filter-panel"><div class="mis-filter-grid">${filterHtml}</div><div class="table-actions mis-controls"><button type="button" class="add-row-btn" id="misApplyBtn">Apply Filters</button><button type="button" class="secondary-btn" id="misClearBtn">Clear Filters</button><button type="button" class="secondary-btn" id="misResetBtn">Reset Dashboard</button><button type="button" class="secondary-btn" id="misExportBtn">Export MIS CSV</button><button type="button" class="secondary-btn" id="misPrintBtn">Print MIS</button><button type="button" class="secondary-btn" id="misFullscreenBtn">Full Screen</button></div></section>
+      <div class="mis-breadcrumb"><strong>Drill-down:</strong> ${misDrillDown.length ? misDrillDown.map((item) => `${escapeHtml(item.label)}: ${escapeHtml(item.value)}`).join(" <span>›</span> ") : "Dashboard summary"} ${misDrillDown.length ? '<button type="button" class="secondary-btn" id="misBackBtn">Back</button>' : ""}</div>
+      <section class="mis-kpis">${metric("Total APRs", aprs.size, "Unique APR numbers", "aprNumber")}${metric("Classified Records", records.filter((item) => item.genMkfedPvt).length, `${records.length} report records`, "genMkfedPvt")}${metric("Transactions", records.length, "Filtered report records", "")}${metric("Average Value", values.length ? misFormat(values.reduce((a, b) => a + b, 0) / values.length) : "—", `Min ${values.length ? misFormat(Math.min(...values)) : "—"} · Max ${values.length ? misFormat(Math.max(...values)) : "—"}`, "")}</section>
+      <section class="mis-chart-grid">${chart("Division-wise records", divisionGroups, "division")}${chart("State-wise records", stateGroups, "state")}${chart("Material-wise records", materialGroups, "material")}${chart("GEN/MKFED/PVT. classification", classificationGroups, "genMkfedPvt")}${chart("Pricing Heading-wise records", headingGroups, "pricingHeading")}${chart("Financial Year comparison", yearGroups, "financialYear", true)}${chart("Period-wise record trend", periodGroups, "period", true)}</section>
+      <section class="mis-comparison"><div><h3>Comparative analysis</h3><label>Compare by <select id="misComparisonSelect">${["division", "state", "financialYear", "period", "material", "genMkfedPvt", "pricingHeading"].map((key) => `<option value="${key}" ${key === misComparisonKey ? "selected" : ""}>${escapeHtml(labels[key] || key)}</option>`).join("")}</select></label></div>${comparison ? `<div><strong>${escapeHtml(comparison.first.label)}</strong> ${comparison.first.count} records vs <strong>${escapeHtml(comparison.second.label)}</strong> ${comparison.second.count} records<br><span>Variance: ${variance} records (${variancePct.toFixed(1)}%)</span></div>` : "<p>At least two categories are needed for a comparison.</p>"}</section>
+      <section class="mis-hierarchy"><div class="mis-hierarchy-heading"><div><h3>Expandable Drill-Down</h3><p>Expand a category independently to view its sub-categories and underlying Reports records.</p></div><span>Level 1–5</span></div>${misHierarchy(records)}</section>
+      <section class="mis-detail"><div class="mis-table-tools"><h3>Detailed Reports Records (${tableRows.length})</h3><input id="misTableSearch" value="${escapeHtml(misTableSearch)}" placeholder="Search current results" /></div><div class="table-wrapper"><table class="master-data-table pricing-data-table mis-table"><thead><tr>${columns.map((key) => `<th><button type="button" class="mis-sort" data-mis-sort="${key}">${labels[key]} ${misTableSort.key === key ? (misTableSort.asc ? "▲" : "▼") : ""}</button></th>`).join("")}</tr></thead><tbody>${pageRows.length ? pageRows.map((record) => `<tr>${columns.map((key) => `<td><button type="button" class="mis-cell-drill" data-mis-drill-key="${key}" data-mis-drill-value="${escapeHtml(record[key] || "")}">${escapeHtml(record[key] || "—")}</button></td>`).join("")}</tr>`).join("") : `<tr><td colspan="${columns.length}" class="empty-state">No Report records match this analysis.</td></tr>`}</tbody></table></div><div class="mis-pagination"><button type="button" class="secondary-btn" id="misPrevBtn" ${misTablePage === 1 ? "disabled" : ""}>Previous</button><span>Page ${misTablePage} of ${pageCount}</span><button type="button" class="secondary-btn" id="misNextBtn" ${misTablePage === pageCount ? "disabled" : ""}>Next</button></div></section>
+    </div>`;
+}
+
+function misNumber(value) { const parsed = Number(String(value ?? "").replace(/[^0-9.-]/g, "")); return Number.isFinite(parsed) ? parsed : 0; }
+function misFormat(value) { return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(value || 0); }
+function misChart(groups, key, line) {
+  if (!groups.length) return '<p class="mis-empty">No report data available for this view.</p>';
+  const top = groups.slice(0, 8), max = Math.max(...top.map((item) => item.count), 1);
+  return `<div class="mis-bars ${line ? "mis-line" : ""}">${top.map((item) => `<button type="button" class="mis-bar mis-drill" data-mis-drill-key="${key}" data-mis-drill-value="${escapeHtml(item.label)}" title="Drill into ${escapeHtml(item.label)}"><span class="mis-bar-value">${item.count}</span><i style="height:${Math.max(8, (item.count / max) * 100)}%"></i><b>${escapeHtml(item.label)}</b></button>`).join("")}</div>`;
+}
+
+function misHierarchy(records, level = 0, path = "") {
+  const levels = ["division", "state", "financialYear", "material", "pricingHeading"];
+  if (!records.length) return '<p class="mis-empty">No Report records match the current filters.</p>';
+  if (level >= levels.length) return misHierarchyRecords(records);
+  const key = levels[level];
+  const label = REPORT_COLS.find((column) => column.key === key)?.label || key;
+  const groups = records.reduce((result, record) => {
+    const value = String(record[key] || "Not specified");
+    (result[value] ||= []).push(record);
+    return result;
+  }, {});
+  return `<div class="mis-tree-level" data-level="${level + 1}">${Object.entries(groups).sort(([a], [b]) => a.localeCompare(b)).map(([value, childRecords]) => {
+    const nodeId = `${path}|${key}:${value}`;
+    const expanded = misExpandedNodes.has(nodeId);
+    return `<div class="mis-tree-node ${expanded ? "is-expanded" : ""}"><button type="button" class="mis-tree-toggle" data-mis-tree-id="${escapeHtml(nodeId)}" aria-expanded="${expanded}"><span class="mis-tree-icon">${expanded ? "−" : "+"}</span><span class="mis-tree-title"><small>Level ${level + 1} · ${escapeHtml(label)}</small>${escapeHtml(value)}</span><span class="mis-tree-count">${childRecords.length} record${childRecords.length === 1 ? "" : "s"}</span></button>${expanded ? `<div class="mis-tree-children">${misHierarchy(childRecords, level + 1, nodeId)}</div>` : ""}</div>`;
+  }).join("")}</div>`;
+}
+
+function misHierarchyRecords(records) {
+  const columns = ["aprNumber", "slNo", "batchNo", "period", "genMkfedPvt", "value", "remarks", "completedAt", "completedId"];
+  const labels = Object.fromEntries(REPORT_COLS.map((column) => [column.key, column.label]));
+  return `<div class="mis-tree-records"><strong>Level 6 · Detailed Reports Records (${records.length})</strong><div class="mis-tree-table-wrap"><table class="master-data-table mis-tree-table"><thead><tr>${columns.map((key) => `<th>${escapeHtml(labels[key] || key)}</th>`).join("")}</tr></thead><tbody>${records.map((record) => `<tr>${columns.map((key) => `<td>${escapeHtml(record[key] || "—")}</td>`).join("")}</tr>`).join("")}</tbody></table></div></div>`;
 }
 
 function handleAdminLogin() {
@@ -1594,6 +1799,143 @@ reportsButton.addEventListener("click", () => {
   renderReportsPanel();
 });
 
+misButton.addEventListener("click", () => {
+  currentAppView = "mis";
+  document.body.classList.add("pricing-view-active");
+  masterDataPanel.classList.remove("hidden");
+  renderMisPanel();
+});
+
+function renderCurrentAppView() {
+  if (currentAppView === "pricing") renderPricingDataTable();
+  else if (currentAppView === "saved-pricing-records") renderSavedPricingRecordsPanel();
+  else if (currentAppView === "reports") renderReportsPanel();
+  else if (currentAppView === "mis") renderMisPanel();
+  else renderMasterDataPanel();
+}
+
+backupDatabaseButton.addEventListener("click", () => {
+  if (!databaseAvailable) {
+    window.alert("Local SQLite database is unavailable. Start the application with python backend/app.py.");
+    return;
+  }
+  const link = document.createElement("a");
+  link.href = "/api/backup";
+  link.download = "pricing-archive-backup.db";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+});
+
+restoreDatabaseButton.addEventListener("click", () => {
+  if (!databaseAvailable) {
+    window.alert("Local SQLite database is unavailable. Start the application with python backend/app.py.");
+    return;
+  }
+  restoreDatabaseInput.click();
+});
+
+restoreDatabaseInput.addEventListener("change", async () => {
+  const file = restoreDatabaseInput.files?.[0];
+  restoreDatabaseInput.value = "";
+  if (!file) return;
+  if (!window.confirm("Restore this database? The current database will first be copied to backups/application-before-restore.db.")) return;
+  try {
+    const response = await fetch("/api/restore", { method: "POST", headers: { "Content-Type": "application/x-sqlite3" }, body: await file.arrayBuffer() });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "Database restore failed.");
+    const stateResponse = await fetch("/api/state");
+    const stateResult = await stateResponse.json();
+    applyApplicationState(stateResult.state);
+    persistPricingDataState();
+    pricingDataValidationMessage = "Database restored successfully.";
+    renderCurrentAppView();
+  } catch (error) {
+    console.error("Database restore failed.", error);
+    window.alert(`Unable to restore the database: ${error.message}`);
+  }
+});
+
+function getMisFilteredDisplayRecords() {
+  return completedPricingRecords.map((row, index) => getReportRowDisplayValues(row, index)).filter((record) =>
+    MIS_FILTERS.every((filter) => !misFilters[filter.key]?.length || misFilters[filter.key].includes(String(record[filter.key] || ""))) &&
+    misDrillDown.every((drill) => String(record[drill.key] || "") === drill.value)
+  );
+}
+
+masterDataPanel.addEventListener("change", (event) => {
+  const filterKey = event.target.dataset.misFilter;
+  if (filterKey) {
+    misFilters[filterKey] = [...document.querySelectorAll(`[data-mis-filter="${filterKey}"]:checked`)].map((option) => option.value);
+    misTablePage = 1;
+    renderMisPanel();
+  } else if (event.target.id === "misComparisonSelect") {
+    misComparisonKey = event.target.value;
+    renderMisPanel();
+  }
+});
+
+masterDataPanel.addEventListener("input", (event) => {
+  const searchKey = event.target.dataset.misSearch;
+  if (searchKey) {
+    const term = event.target.value.toLowerCase();
+    document.querySelectorAll(`[data-mis-option="${searchKey}"]`).forEach((option) => { option.hidden = !option.textContent.toLowerCase().includes(term); });
+  } else if (event.target.id === "misTableSearch") {
+    misTableSearch = event.target.value;
+    misTablePage = 1;
+    renderMisPanel();
+  }
+});
+
+masterDataPanel.addEventListener("click", (event) => {
+  const target = event.target.closest("button");
+  if (!target) return;
+  if (target.dataset.misFilterToggle) {
+    const key = target.dataset.misFilterToggle;
+    const menu = document.getElementById(`misFilterMenu-${key}`);
+    const willOpen = menu.hidden;
+    document.querySelectorAll(".mis-filter-menu").forEach((item) => { item.hidden = true; });
+    document.querySelectorAll(".mis-filter-toggle").forEach((item) => item.setAttribute("aria-expanded", "false"));
+    menu.hidden = !willOpen;
+    target.setAttribute("aria-expanded", String(willOpen));
+    if (willOpen) menu.querySelector("input")?.focus();
+  } else if (target.dataset.misTreeId) {
+    const nodeId = target.dataset.misTreeId;
+    if (misExpandedNodes.has(nodeId)) misExpandedNodes.delete(nodeId); else misExpandedNodes.add(nodeId);
+    renderMisPanel();
+  } else if (target.dataset.misSelectAll) {
+    const key = target.dataset.misSelectAll;
+    misFilters[key] = [...document.querySelectorAll(`[data-mis-filter="${key}"]`)].map((input) => input.value);
+    misTablePage = 1; renderMisPanel();
+  } else if (target.dataset.misClearFilter) {
+    delete misFilters[target.dataset.misClearFilter];
+    misTablePage = 1; renderMisPanel();
+  } else if (target.id === "misApplyBtn") { renderMisPanel(); }
+  else if (target.id === "misClearBtn") { misFilters = {}; misTablePage = 1; renderMisPanel(); }
+  else if (target.id === "misResetBtn") { misFilters = {}; misDrillDown = []; misExpandedNodes.clear(); misTableSearch = ""; misTablePage = 1; renderMisPanel(); }
+  else if (target.id === "misBackBtn") { misDrillDown.pop(); misTablePage = 1; renderMisPanel(); }
+  else if (target.id === "misPrevBtn") { misTablePage -= 1; renderMisPanel(); }
+  else if (target.id === "misNextBtn") { misTablePage += 1; renderMisPanel(); }
+  else if (target.id === "misFullscreenBtn") {
+    const dashboard = document.querySelector(".mis-dashboard");
+    if (document.fullscreenElement) document.exitFullscreen?.(); else dashboard?.requestFullscreen?.();
+  } else if (target.id === "misPrintBtn") { window.print(); }
+  else if (target.id === "misExportBtn") {
+    const columns = ["financialYear", "division", "state", "material", "aprNumber", "batchNo", "period", "genMkfedPvt", "pricingHeading", "value"];
+    const csv = [columns.join(","), ...getMisFilteredDisplayRecords().map((row) => columns.map((key) => `"${String(row[key] || "").replace(/"/g, '""')}"`).join(","))].join("\n");
+    const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); link.download = "MIS-Report.csv"; link.click(); URL.revokeObjectURL(link.href);
+  } else if (target.dataset.misSort) {
+    const key = target.dataset.misSort;
+    misTableSort = { key, asc: misTableSort.key === key ? !misTableSort.asc : true }; renderMisPanel();
+  } else if (target.dataset.misDrillKey && target.dataset.misDrillValue) {
+    const key = target.dataset.misDrillKey, value = target.dataset.misDrillValue;
+    if (!misDrillDown.some((item) => item.key === key && item.value === value)) {
+      const label = MIS_FILTERS.find((item) => item.key === key)?.label || key;
+      misDrillDown.push({ key, value, label }); misTablePage = 1; renderMisPanel();
+    }
+  }
+});
+
 masterDataPanel.addEventListener("click", (event) => {
   const target = event.target;
 
@@ -1760,6 +2102,8 @@ masterDataPanel.addEventListener("change", (event) => {
     updatePricingDataRow(event.target.dataset.rowId, "pricingHeadingId", event.target.value);
   } else if (event.target.classList.contains("pricing-unit-rate-select")) {
     updatePricingDataRow(event.target.dataset.rowId, "unitRate", event.target.value);
+  } else if (event.target.classList.contains("pricing-gen-mkfed-pvt-select")) {
+    updatePricingDataRow(event.target.dataset.rowId, "genMkfedPvt", event.target.value);
   } else if (event.target.classList.contains("saved-division-select")) {
     updateSavedPricingRow(event.target.dataset.rowId, "division", event.target.value);
   } else if (event.target.classList.contains("saved-state-select")) {
@@ -1770,22 +2114,20 @@ masterDataPanel.addEventListener("change", (event) => {
     updateSavedPricingRow(event.target.dataset.rowId, "materialId", event.target.value);
   } else if (event.target.classList.contains("saved-heading-select")) {
     updateSavedPricingRow(event.target.dataset.rowId, "pricingHeadingId", event.target.value);
+  } else if (event.target.classList.contains("saved-gen-mkfed-pvt-select")) {
+    updateSavedPricingRow(event.target.dataset.rowId, "genMkfedPvt", event.target.value);
   }
 });
 
 masterDataPanel.addEventListener("input", (event) => {
   if (event.target.classList.contains("report-period-input")) {
     updateReportRecord(event.target.dataset.rowId, "period", event.target.value);
-  } else if (event.target.classList.contains("report-quantity-input")) {
-    updateReportRecord(event.target.dataset.rowId, "quantity", event.target.value);
   } else if (event.target.classList.contains("report-value-input")) {
     updateReportRecord(event.target.dataset.rowId, "value", event.target.value);
   } else if (event.target.classList.contains("report-remarks-input")) {
     updateReportRecord(event.target.dataset.rowId, "remarks", event.target.value);
   } else if (event.target.classList.contains("pricing-period-input")) {
     updatePricingDataRow(event.target.dataset.rowId, "period", event.target.value);
-  } else if (event.target.classList.contains("pricing-quantity-input")) {
-    updatePricingDataRow(event.target.dataset.rowId, "quantity", event.target.value);
   } else if (event.target.classList.contains("pricing-batchno-input")) {
     updatePricingDataRow(event.target.dataset.rowId, "batchNo", event.target.value);
   } else if (event.target.classList.contains("pricing-value-input")) {
@@ -1794,8 +2136,6 @@ masterDataPanel.addEventListener("input", (event) => {
     updatePricingDataRow(event.target.dataset.rowId, "remarks", event.target.value);
   } else if (event.target.classList.contains("saved-period-input")) {
     updateSavedPricingRow(event.target.dataset.rowId, "period", event.target.value);
-  } else if (event.target.classList.contains("saved-quantity-input")) {
-    updateSavedPricingRow(event.target.dataset.rowId, "quantity", event.target.value);
   } else if (event.target.classList.contains("saved-unit-rate-input")) {
     updateSavedPricingRow(event.target.dataset.rowId, "unitRate", event.target.value);
   } else if (event.target.classList.contains("saved-apr-input")) {
@@ -1840,3 +2180,6 @@ document.addEventListener("click", (event) => {
 
 const yearEl = document.getElementById("year");
 yearEl.textContent = new Date().getFullYear();
+initialiseDatabaseStorage().then(() => {
+  if (!masterDataPanel.classList.contains("hidden")) renderCurrentAppView();
+});
