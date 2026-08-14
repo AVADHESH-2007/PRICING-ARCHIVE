@@ -990,3 +990,46 @@ body.pricing-view-active footer {
   }
 
 }
+
+/* ── MIS Analytical Summary Tables ─────────────────────────────────────── */
+
+.mis-summary-wrap { margin-bottom: 6px; }
+.mis-summary-label { font-size: .75rem; font-weight: 700; color: var(--secondary); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+
+.mis-summary-table { width: max-content; min-width: 100%; table-layout: auto; }
+.mis-summary-table th, .mis-summary-table td { white-space: nowrap; padding: 7px 10px; font-size: .82rem; }
+.mis-summary-table th { position: sticky; top: 0; z-index: 2; }
+.mis-num { text-align: right !important; font-variant-numeric: tabular-nums; }
+
+.mis-summary-row td { background: #fff; }
+.mis-summary-row:hover td { background: #f0f8ff; }
+.mis-summary-row.is-expanded > td { background: #eaf4ff; font-weight: 600; }
+
+.mis-summary-total td { background: linear-gradient(135deg, #e8f0fe, #dbeafe) !important; border-top: 2px solid var(--secondary); }
+
+.mis-summary-toggle { border: 0; background: transparent; color: var(--primary); font: inherit; font-size: .82rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 0; text-align: left; }
+.mis-summary-toggle:hover { color: var(--secondary); text-decoration: underline; }
+.mis-summary-toggle .mis-tree-icon { width: 18px; height: 18px; border-radius: 3px; background: var(--secondary); color: #fff; display: grid; place-items: center; font-size: .85rem; flex-shrink: 0; }
+
+.mis-summary-child-row > td { padding: 0 0 0 24px; background: #f8fbff; border-left: 3px solid #93c5fd; }
+
+.mis-var-pos { color: #15803d; font-weight: 600; }
+.mis-var-neg { color: #b91c1c; font-weight: 600; }
+
+.mis-comparison { display: flex; flex-direction: column; gap: 10px; font-size: .85rem; }
+.mis-comparison-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.mis-comparison-header h3 { color: var(--primary); font-size: .92rem; margin: 0; }
+.mis-comparison-header label { font-size: .82rem; color: #475569; }
+.mis-comparison-header select { margin-left: 6px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 8px; font: inherit; font-size: .82rem; }
+
+/* -- MIS Result Table ---------------------------------------------------- */
+.mis-record-count { font-size: .85rem; color: var(--primary); font-weight: 600; }
+.mis-table-tools { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; flex-shrink: 0; flex-wrap: wrap; }
+.mis-table-tools input { max-width: 280px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 10px; font: inherit; font-size: .85rem; }
+.mis-result-table-wrap { flex: 1; min-height: 0; overflow-x: auto; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; }
+.mis-result-table { width: max-content; min-width: 100%; table-layout: auto; }
+.mis-result-table th { position: sticky; top: 0; z-index: 2; white-space: nowrap; }
+.mis-result-table td { white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
+.mis-applied-filters { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0 4px; flex-shrink: 0; }
+.mis-applied-tag { background: #eaf4ff; border: 1px solid #93c5fd; border-radius: 6px; padding: 3px 10px; font-size: .78rem; color: var(--primary); }
+.mis-no-filter-msg { background: #fff7ed; border: 1px solid #fdba74; border-radius: 8px; padding: 12px 16px; color: #9a2c00; font-size: .9rem; flex-shrink: 0; }
