@@ -18,9 +18,6 @@ const pricingDataButton = document.getElementById("pricingDataBtn");
 const savedPricingRecordsButton = document.getElementById("savedPricingRecordsBtn");
 const reportsButton = document.getElementById("reportsBtn");
 const misButton = document.getElementById("misBtn");
-const backupDatabaseButton = document.getElementById("backupDatabaseBtn");
-const restoreDatabaseButton = document.getElementById("restoreDatabaseBtn");
-const restoreDatabaseInput = document.getElementById("restoreDatabaseInput");
 const masterDataPanel = document.getElementById("masterDataPanel");
 
 function getStoredValue(key, fallback) {
@@ -76,6 +73,9 @@ let misTableSort = { key: "financialYear", asc: true };
 let misTablePage = 1;
 let misComparisonKey = "division";
 let misExpandedNodes = new Set();
+let misDrillSort = { key: "", asc: true };
+let misDrillExpandedRows = new Set();
+let misApplied = false;
 let databaseSyncQueue = Promise.resolve();
 let databaseAvailable = false;
 
@@ -1351,58 +1351,118 @@ function renderReportsPanel() {
     </div>
   `;
 }
-
 function renderMisPanel() {
   const source = completedPricingRecords.map((row, index) => ({ row, values: getReportRowDisplayValues(row, index) }));
   const optionsFor = (key) => key === "genMkfedPvt"
     ? ["GENERAL", "MARKFED", "PRIVATE"]
     : [...new Set(source.map((item) => item.values[key]).filter((value) => value !== "" && value != null))].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
   const activeFilters = MIS_FILTERS.reduce((filters, filter) => ({ ...filters, [filter.key]: misFilters[filter.key] || [] }), {});
-  const filtered = source.filter((item) => MIS_FILTERS.every((filter) => {
-    const selected = activeFilters[filter.key];
-    return !selected.length || selected.includes(String(item.values[filter.key] || ""));
-  })).filter((item) => misDrillDown.every((drill) => String(item.values[drill.key] || "") === drill.value));
-  const records = filtered.map((item) => item.values);
-  const values = records.map((item) => misNumber(item.value)).filter((value) => Number.isFinite(value));
-  const aprs = new Set(records.map((item) => item.aprNumber).filter(Boolean));
-  const groupBy = (key) => Object.entries(records.reduce((groups, item) => {
-    const name = item[key] || "Not specified";
-    if (!groups[name]) groups[name] = { count: 0, value: 0 };
-    groups[name].count += 1; groups[name].value += misNumber(item.value);
-    return groups;
-  }, {})).map(([label, stats]) => ({ label, ...stats })).sort((a, b) => b.count - a.count);
-  const divisionGroups = groupBy("division"), stateGroups = groupBy("state"), materialGroups = groupBy("material"), classificationGroups = groupBy("genMkfedPvt"), headingGroups = groupBy("pricingHeading"), yearGroups = groupBy("financialYear"), periodGroups = groupBy("period");
-  const comparisonGroups = groupBy(misComparisonKey);
-  const comparison = comparisonGroups.length >= 2 ? { first: comparisonGroups[0], second: comparisonGroups[1] } : null;
-  const variance = comparison ? comparison.first.count - comparison.second.count : 0;
-  const variancePct = comparison && comparison.second.count ? (variance / comparison.second.count) * 100 : 0;
+
+  const MIS_TABLE_COLS = [
+    { key: "aprNumber",      label: "APR No." },
+    { key: "slNo",           label: "Sl. No." },
+    { key: "division",       label: "Division" },
+    { key: "state",          label: "State" },
+    { key: "financialYear",  label: "Financial Year" },
+    { key: "period",         label: "Period" },
+    { key: "genMkfedPvt",    label: "GEN/MKFED/PVT." },
+    { key: "material",       label: "Material Description" },
+    { key: "pricingHeading", label: "Pricing Heading" },
+    { key: "unitRate",       label: "Unit Rate" },
+    { key: "batchNo",        label: "Batch No." },
+    { key: "value",          label: "Value / Amount / Text" },
+    { key: "remarks",        label: "Remarks" },
+    { key: "completedAt",    label: "Completed On" },
+    { key: "completedId",    label: "Completed ID" },
+  ];
+
+  // Filter panel HTML
   const filterHtml = MIS_FILTERS.map((filter) => {
     const options = optionsFor(filter.key), selected = activeFilters[filter.key];
     const selectedCount = selected.length;
-    return `<div class="mis-filter" data-mis-filter-wrap="${filter.key}"><label>${filter.label}</label><button type="button" class="mis-filter-toggle" data-mis-filter-toggle="${filter.key}" aria-expanded="false">${selectedCount ? `${selectedCount} selected` : "All values"}<span>⌄</span></button><div class="mis-filter-menu" id="misFilterMenu-${filter.key}" hidden><input class="mis-filter-search" data-mis-search="${filter.key}" placeholder="Search ${filter.label}" /><div class="mis-filter-menu-actions"><button type="button" data-mis-select-all="${filter.key}">Select All</button><button type="button" data-mis-clear-filter="${filter.key}">Clear</button></div><div class="mis-filter-options">${options.map((option) => `<label data-mis-option="${filter.key}"><input type="checkbox" data-mis-filter="${filter.key}" value="${escapeHtml(option)}" ${selected.includes(String(option)) ? "checked" : ""}> <span>${escapeHtml(option)}</span></label>`).join("") || '<span class="mis-no-options">No report data available</span>'}</div></div></div>`;
+    return `<div class="mis-filter" data-mis-filter-wrap="${filter.key}"><label>${filter.label}</label><button type="button" class="mis-filter-toggle" data-mis-filter-toggle="${filter.key}" aria-expanded="false">${selectedCount ? `${selectedCount} selected` : "All values"}<span>âŒ„</span></button><div class="mis-filter-menu" id="misFilterMenu-${filter.key}" hidden><input class="mis-filter-search" data-mis-search="${filter.key}" placeholder="Search ${filter.label}" /><div class="mis-filter-menu-actions"><button type="button" data-mis-select-all="${filter.key}">Select All</button><button type="button" data-mis-clear-filter="${filter.key}">Clear</button></div><div class="mis-filter-options">${options.map((option) => `<label data-mis-option="${filter.key}"><input type="checkbox" data-mis-filter="${filter.key}" value="${escapeHtml(option)}" ${selected.includes(String(option)) ? "checked" : ""}> <span>${escapeHtml(option)}</span></label>`).join("") || '<span class="mis-no-options">No report data available</span>'}</div></div></div>`;
   }).join("");
-  const metric = (label, value, note, drillKey) => `<button type="button" class="mis-kpi mis-drill" data-mis-drill-key="${drillKey || ""}" data-mis-drill-value=""><span>${label}</span><strong>${value}</strong><small>${note}</small></button>`;
-  const chart = (title, groups, drillKey, line = false) => `<section class="mis-chart"><h3>${title}</h3>${misChart(groups, drillKey, line)}</section>`;
-  const tableRows = records.filter((record) => Object.values(record).join(" ").toLowerCase().includes(misTableSearch.toLowerCase())).sort((a, b) => {
-    const left = String(a[misTableSort.key] || ""), right = String(b[misTableSort.key] || "");
-    const result = left.localeCompare(right, undefined, { numeric: true }); return misTableSort.asc ? result : -result;
-  });
-  const pageSize = 12, pageCount = Math.max(1, Math.ceil(tableRows.length / pageSize));
-  misTablePage = Math.min(misTablePage, pageCount);
-  const pageRows = tableRows.slice((misTablePage - 1) * pageSize, misTablePage * pageSize);
-  const columns = REPORT_COLS.map((column) => column.key);
-  const labels = Object.fromEntries(REPORT_COLS.map((column) => [column.key, column.label]));
+
+  // Build results section only when misApplied is true
+  let resultsHtml = "";
+  if (misApplied) {
+    const hasAnyFilter = MIS_FILTERS.some((f) => (activeFilters[f.key] || []).length > 0);
+    if (!hasAnyFilter) {
+      resultsHtml = `<div class="mis-no-filter-msg">Please select at least one filter before generating the MIS.</div>`;
+    } else {
+      // Apply filters: within same filter = OR, between filters = AND
+      const filtered = source.filter((item) => MIS_FILTERS.every((filter) => {
+        const selected = activeFilters[filter.key];
+        return !selected.length || selected.includes(String(item.values[filter.key] || ""));
+      }));
+      const allRecords = filtered.map((item) => item.values);
+
+      // Applied filter summary
+      const appliedSummary = MIS_FILTERS
+        .filter((f) => (activeFilters[f.key] || []).length > 0)
+        .map((f) => `<span class="mis-applied-tag"><strong>${escapeHtml(f.label)}:</strong> ${activeFilters[f.key].map(escapeHtml).join(", ")}</span>`)
+        .join("");
+
+      // Search within results
+      const searched = misTableSearch
+        ? allRecords.filter((r) => Object.values(r).join(" ").toLowerCase().includes(misTableSearch.toLowerCase()))
+        : allRecords;
+
+      // Sort
+      const sortKey = misTableSort.key || "aprNumber";
+      const sorted = [...searched].sort((a, b) => {
+        const l = String(a[sortKey] || ""), r = String(b[sortKey] || "");
+        const res = l.localeCompare(r, undefined, { numeric: true });
+        return misTableSort.asc ? res : -res;
+      });
+
+      // Paginate
+      const pageSize = 20;
+      const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
+      misTablePage = Math.min(misTablePage, pageCount);
+      const pageRows = sorted.slice((misTablePage - 1) * pageSize, misTablePage * pageSize);
+
+      const thead = MIS_TABLE_COLS.map((col) => {
+        const arrow = misTableSort.key === col.key ? (misTableSort.asc ? " â–²" : " â–¼") : "";
+        return `<th><button type="button" class="mis-sort" data-mis-sort="${col.key}">${escapeHtml(col.label)}${arrow}</button></th>`;
+      }).join("");
+
+      const tbody = pageRows.length
+        ? pageRows.map((r) => `<tr>${MIS_TABLE_COLS.map((col) => `<td>${escapeHtml(r[col.key] || "")}</td>`).join("")}</tr>`).join("")
+        : `<tr><td colspan="${MIS_TABLE_COLS.length}" class="empty-state">No records found for the selected filter criteria.</td></tr>`;
+
+      resultsHtml = `
+        <div class="mis-applied-filters">${appliedSummary}</div>
+        <div class="mis-table-tools">
+          <span class="mis-record-count">Filtered Records: <strong>${allRecords.length}</strong>${misTableSearch ? ` &nbsp;Â·&nbsp; Showing: <strong>${searched.length}</strong>` : ""}</span>
+          <input id="misTableSearch" value="${escapeHtml(misTableSearch)}" placeholder="Search within resultsâ€¦" />
+        </div>
+        <div class="saved-table-wrapper mis-result-table-wrap">
+          <table class="master-data-table pricing-data-table mis-result-table">
+            <thead><tr>${thead}</tr></thead>
+            <tbody>${tbody}</tbody>
+          </table>
+        </div>
+        <div class="mis-pagination">
+          <button type="button" class="secondary-btn" id="misPrevBtn" ${misTablePage === 1 ? "disabled" : ""}>Previous</button>
+          <span>Page ${misTablePage} of ${pageCount} &nbsp;Â·&nbsp; ${sorted.length} record${sorted.length !== 1 ? "s" : ""}</span>
+          <button type="button" class="secondary-btn" id="misNextBtn" ${misTablePage === pageCount ? "disabled" : ""}>Next</button>
+        </div>`;
+    }
+  }
 
   masterDataPanel.innerHTML = `
     <div class="master-data-card mis-dashboard">
-      <div class="panel-heading"><h2>MIS ANALYTICAL DASHBOARD</h2><p>Live analysis of Reports data. Select multiple values with Ctrl / Cmd; blank selections include all values.</p></div>
-      <section class="mis-filter-panel"><div class="mis-filter-grid">${filterHtml}</div><div class="table-actions mis-controls"><button type="button" class="add-row-btn" id="misApplyBtn">Apply Filters</button><button type="button" class="secondary-btn" id="misClearBtn">Clear Filters</button><button type="button" class="secondary-btn" id="misResetBtn">Reset Dashboard</button><button type="button" class="secondary-btn" id="misExportBtn">Export MIS CSV</button><button type="button" class="secondary-btn" id="misPrintBtn">Print MIS</button><button type="button" class="secondary-btn" id="misFullscreenBtn">Full Screen</button></div></section>
-      <div class="mis-breadcrumb"><strong>Drill-down:</strong> ${misDrillDown.length ? misDrillDown.map((item) => `${escapeHtml(item.label)}: ${escapeHtml(item.value)}`).join(" <span>›</span> ") : "Dashboard summary"} ${misDrillDown.length ? '<button type="button" class="secondary-btn" id="misBackBtn">Back</button>' : ""}</div>
-      <section class="mis-kpis">${metric("Total APRs", aprs.size, "Unique APR numbers", "aprNumber")}${metric("Classified Records", records.filter((item) => item.genMkfedPvt).length, `${records.length} report records`, "genMkfedPvt")}${metric("Transactions", records.length, "Filtered report records", "")}${metric("Average Value", values.length ? misFormat(values.reduce((a, b) => a + b, 0) / values.length) : "—", `Min ${values.length ? misFormat(Math.min(...values)) : "—"} · Max ${values.length ? misFormat(Math.max(...values)) : "—"}`, "")}</section>
-      <section class="mis-chart-grid">${chart("Division-wise records", divisionGroups, "division")}${chart("State-wise records", stateGroups, "state")}${chart("Material-wise records", materialGroups, "material")}${chart("GEN/MKFED/PVT. classification", classificationGroups, "genMkfedPvt")}${chart("Pricing Heading-wise records", headingGroups, "pricingHeading")}${chart("Financial Year comparison", yearGroups, "financialYear", true)}${chart("Period-wise record trend", periodGroups, "period", true)}</section>
-      <section class="mis-comparison"><div><h3>Comparative analysis</h3><label>Compare by <select id="misComparisonSelect">${["division", "state", "financialYear", "period", "material", "genMkfedPvt", "pricingHeading"].map((key) => `<option value="${key}" ${key === misComparisonKey ? "selected" : ""}>${escapeHtml(labels[key] || key)}</option>`).join("")}</select></label></div>${comparison ? `<div><strong>${escapeHtml(comparison.first.label)}</strong> ${comparison.first.count} records vs <strong>${escapeHtml(comparison.second.label)}</strong> ${comparison.second.count} records<br><span>Variance: ${variance} records (${variancePct.toFixed(1)}%)</span></div>` : "<p>At least two categories are needed for a comparison.</p>"}</section>
-      <section class="mis-hierarchy"><div class="mis-hierarchy-heading"><div><h3>Expandable Drill-Down</h3><p>Expand a category independently to view its sub-categories and underlying Reports records.</p></div><span>Level 1–5</span></div>${misHierarchy(records)}</section>
-      <section class="mis-detail"><div class="mis-table-tools"><h3>Detailed Reports Records (${tableRows.length})</h3><input id="misTableSearch" value="${escapeHtml(misTableSearch)}" placeholder="Search current results" /></div><div class="table-wrapper"><table class="master-data-table pricing-data-table mis-table"><thead><tr>${columns.map((key) => `<th><button type="button" class="mis-sort" data-mis-sort="${key}">${labels[key]} ${misTableSort.key === key ? (misTableSort.asc ? "▲" : "▼") : ""}</button></th>`).join("")}</tr></thead><tbody>${pageRows.length ? pageRows.map((record) => `<tr>${columns.map((key) => `<td><button type="button" class="mis-cell-drill" data-mis-drill-key="${key}" data-mis-drill-value="${escapeHtml(record[key] || "")}">${escapeHtml(record[key] || "—")}</button></td>`).join("")}</tr>`).join("") : `<tr><td colspan="${columns.length}" class="empty-state">No Report records match this analysis.</td></tr>`}</tbody></table></div><div class="mis-pagination"><button type="button" class="secondary-btn" id="misPrevBtn" ${misTablePage === 1 ? "disabled" : ""}>Previous</button><span>Page ${misTablePage} of ${pageCount}</span><button type="button" class="secondary-btn" id="misNextBtn" ${misTablePage === pageCount ? "disabled" : ""}>Next</button></div></section>
+      <div class="panel-heading"><h2>MIS ANALYTICAL DASHBOARD</h2><p>Select filters and click Apply Filters to retrieve matching Records.</p></div>
+      <section class="mis-filter-panel">
+        <div class="mis-filter-grid">${filterHtml}</div>
+        <div class="table-actions mis-controls">
+          <button type="button" class="add-row-btn" id="misApplyBtn">Apply Filters</button>
+          <button type="button" class="secondary-btn" id="misClearBtn">Clear / Reset Filters</button>
+          ${misApplied ? `<button type="button" class="secondary-btn" id="misExportBtn">Export CSV</button><button type="button" class="secondary-btn" id="misPrintBtn">Print</button>` : ""}
+        </div>
+      </section>
+      ${resultsHtml}
     </div>`;
 }
 
@@ -1419,23 +1479,81 @@ function misHierarchy(records, level = 0, path = "") {
   if (!records.length) return '<p class="mis-empty">No Report records match the current filters.</p>';
   if (level >= levels.length) return misHierarchyRecords(records);
   const key = levels[level];
-  const label = REPORT_COLS.find((column) => column.key === key)?.label || key;
-  const groups = records.reduce((result, record) => {
-    const value = String(record[key] || "Not specified");
-    (result[value] ||= []).push(record);
-    return result;
+  const label = REPORT_COLS.find((c) => c.key === key)?.label || key;
+  const groups = records.reduce((acc, rec) => {
+    const v = String(rec[key] || "Not specified");
+    (acc[v] ||= []).push(rec);
+    return acc;
   }, {});
-  return `<div class="mis-tree-level" data-level="${level + 1}">${Object.entries(groups).sort(([a], [b]) => a.localeCompare(b)).map(([value, childRecords]) => {
+  const totalRecords = records.length;
+  const totalAprs = new Set(records.map((r) => r.aprNumber).filter(Boolean)).size;
+  const totalVal = records.reduce((s, r) => s + misNumber(r.value), 0);
+  const sortedEntries = Object.entries(groups).sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }));
+
+  // Build summary table rows
+  const summaryRows = sortedEntries.map(([value, childRecords]) => {
     const nodeId = `${path}|${key}:${value}`;
     const expanded = misExpandedNodes.has(nodeId);
-    return `<div class="mis-tree-node ${expanded ? "is-expanded" : ""}"><button type="button" class="mis-tree-toggle" data-mis-tree-id="${escapeHtml(nodeId)}" aria-expanded="${expanded}"><span class="mis-tree-icon">${expanded ? "−" : "+"}</span><span class="mis-tree-title"><small>Level ${level + 1} · ${escapeHtml(label)}</small>${escapeHtml(value)}</span><span class="mis-tree-count">${childRecords.length} record${childRecords.length === 1 ? "" : "s"}</span></button>${expanded ? `<div class="mis-tree-children">${misHierarchy(childRecords, level + 1, nodeId)}</div>` : ""}</div>`;
-  }).join("")}</div>`;
+    const cnt = childRecords.length;
+    const aprs = new Set(childRecords.map((r) => r.aprNumber).filter(Boolean)).size;
+    const val = childRecords.reduce((s, r) => s + misNumber(r.value), 0);
+    const pct = totalRecords ? ((cnt / totalRecords) * 100).toFixed(1) : "0.0";
+    return `
+      <tr class="mis-summary-row ${expanded ? "is-expanded" : ""}">
+        <td>
+          <button type="button" class="mis-tree-toggle mis-summary-toggle" data-mis-tree-id="${escapeHtml(nodeId)}" aria-expanded="${expanded}">
+            <span class="mis-tree-icon">${expanded ? "−" : "+"}</span>
+            <span>${escapeHtml(value)}</span>
+          </button>
+        </td>
+        <td class="mis-num">${cnt}</td>
+        <td class="mis-num">${aprs}</td>
+        <td class="mis-num">${misFormat(val)}</td>
+        <td class="mis-num">${pct}%</td>
+      </tr>
+      ${expanded ? `<tr class="mis-summary-child-row"><td colspan="5"><div class="mis-tree-children">${misHierarchy(childRecords, level + 1, nodeId)}</div></td></tr>` : ""}`;
+  }).join("");
+
+  // Total row
+  const totalRow = `
+    <tr class="mis-summary-total">
+      <td><strong>Total</strong></td>
+      <td class="mis-num"><strong>${totalRecords}</strong></td>
+      <td class="mis-num"><strong>${totalAprs}</strong></td>
+      <td class="mis-num"><strong>${misFormat(totalVal)}</strong></td>
+      <td class="mis-num"><strong>100%</strong></td>
+    </tr>`;
+
+  return `
+    <div class="mis-summary-wrap">
+      <div class="mis-summary-label">Level ${level + 1} · ${escapeHtml(label)}</div>
+      <div class="mis-tree-table-wrap">
+        <table class="master-data-table mis-summary-table">
+          <thead><tr>
+            <th>${escapeHtml(label)}</th>
+            <th class="mis-num">Records</th>
+            <th class="mis-num">APRs</th>
+            <th class="mis-num">Numeric Value</th>
+            <th class="mis-num">% of Total</th>
+          </tr></thead>
+          <tbody>${summaryRows}${totalRow}</tbody>
+        </table>
+      </div>
+    </div>`;
 }
 
 function misHierarchyRecords(records) {
-  const columns = ["aprNumber", "slNo", "batchNo", "period", "genMkfedPvt", "value", "remarks", "completedAt", "completedId"];
-  const labels = Object.fromEntries(REPORT_COLS.map((column) => [column.key, column.label]));
-  return `<div class="mis-tree-records"><strong>Level 6 · Detailed Reports Records (${records.length})</strong><div class="mis-tree-table-wrap"><table class="master-data-table mis-tree-table"><thead><tr>${columns.map((key) => `<th>${escapeHtml(labels[key] || key)}</th>`).join("")}</tr></thead><tbody>${records.map((record) => `<tr>${columns.map((key) => `<td>${escapeHtml(record[key] || "—")}</td>`).join("")}</tr>`).join("")}</tbody></table></div></div>`;
+  const columns = ["aprNumber", "slNo", "batchNo", "division", "state", "financialYear", "period", "genMkfedPvt", "material", "pricingHeading", "value", "remarks", "completedAt", "completedId"];
+  const labels = Object.fromEntries(REPORT_COLS.map((c) => [c.key, c.label]));
+  return `<div class="mis-tree-records">
+    <strong>Detailed Records (${records.length})</strong>
+    <div class="mis-tree-table-wrap">
+      <table class="master-data-table mis-tree-table">
+        <thead><tr>${columns.map((k) => `<th>${escapeHtml(labels[k] || k)}</th>`).join("")}</tr></thead>
+        <tbody>${records.map((rec) => `<tr>${columns.map((k) => `<td>${escapeHtml(rec[k] || "—")}</td>`).join("")}</tr>`).join("")}</tbody>
+      </table>
+    </div>
+  </div>`;
 }
 
 function handleAdminLogin() {
@@ -1814,47 +1932,6 @@ function renderCurrentAppView() {
   else renderMasterDataPanel();
 }
 
-backupDatabaseButton.addEventListener("click", () => {
-  if (!databaseAvailable) {
-    window.alert("Local SQLite database is unavailable. Start the application with python backend/app.py.");
-    return;
-  }
-  const link = document.createElement("a");
-  link.href = "/api/backup";
-  link.download = "pricing-archive-backup.db";
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-});
-
-restoreDatabaseButton.addEventListener("click", () => {
-  if (!databaseAvailable) {
-    window.alert("Local SQLite database is unavailable. Start the application with python backend/app.py.");
-    return;
-  }
-  restoreDatabaseInput.click();
-});
-
-restoreDatabaseInput.addEventListener("change", async () => {
-  const file = restoreDatabaseInput.files?.[0];
-  restoreDatabaseInput.value = "";
-  if (!file) return;
-  if (!window.confirm("Restore this database? The current database will first be copied to backups/application-before-restore.db.")) return;
-  try {
-    const response = await fetch("/api/restore", { method: "POST", headers: { "Content-Type": "application/x-sqlite3" }, body: await file.arrayBuffer() });
-    const result = await response.json();
-    if (!response.ok || !result.ok) throw new Error(result.error || "Database restore failed.");
-    const stateResponse = await fetch("/api/state");
-    const stateResult = await stateResponse.json();
-    applyApplicationState(stateResult.state);
-    persistPricingDataState();
-    pricingDataValidationMessage = "Database restored successfully.";
-    renderCurrentAppView();
-  } catch (error) {
-    console.error("Database restore failed.", error);
-    window.alert(`Unable to restore the database: ${error.message}`);
-  }
-});
 
 function getMisFilteredDisplayRecords() {
   return completedPricingRecords.map((row, index) => getReportRowDisplayValues(row, index)).filter((record) =>
@@ -1910,9 +1987,9 @@ masterDataPanel.addEventListener("click", (event) => {
   } else if (target.dataset.misClearFilter) {
     delete misFilters[target.dataset.misClearFilter];
     misTablePage = 1; renderMisPanel();
-  } else if (target.id === "misApplyBtn") { renderMisPanel(); }
-  else if (target.id === "misClearBtn") { misFilters = {}; misTablePage = 1; renderMisPanel(); }
-  else if (target.id === "misResetBtn") { misFilters = {}; misDrillDown = []; misExpandedNodes.clear(); misTableSearch = ""; misTablePage = 1; renderMisPanel(); }
+  } else if (target.id === "misApplyBtn") { misApplied = true; misTablePage = 1; renderMisPanel(); }
+  else if (target.id === "misClearBtn") { misFilters = {}; misApplied = false; misTableSearch = ""; misTablePage = 1; renderMisPanel(); }
+  else if (target.id === "misResetBtn") { misFilters = {}; misApplied = false; misDrillDown = []; misExpandedNodes.clear(); misTableSearch = ""; misTablePage = 1; renderMisPanel(); }
   else if (target.id === "misBackBtn") { misDrillDown.pop(); misTablePage = 1; renderMisPanel(); }
   else if (target.id === "misPrevBtn") { misTablePage -= 1; renderMisPanel(); }
   else if (target.id === "misNextBtn") { misTablePage += 1; renderMisPanel(); }
@@ -1924,6 +2001,11 @@ masterDataPanel.addEventListener("click", (event) => {
     const columns = ["financialYear", "division", "state", "material", "aprNumber", "batchNo", "period", "genMkfedPvt", "pricingHeading", "value"];
     const csv = [columns.join(","), ...getMisFilteredDisplayRecords().map((row) => columns.map((key) => `"${String(row[key] || "").replace(/"/g, '""')}"`).join(","))].join("\n");
     const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); link.download = "MIS-Report.csv"; link.click(); URL.revokeObjectURL(link.href);
+  } else if (target.id === "misCompExportBtn") {
+    const tbl = document.getElementById("misCompTable");
+    if (!tbl) return;
+    const csvRows = [...tbl.querySelectorAll("tr")].map(tr => [...tr.querySelectorAll("th,td")].map(td => `"${td.innerText.replace(/"/g,"\"\"\"\"")}"` ).join(","));
+    const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csvRows.join("\n")], { type: "text/csv" })); link.download = "MIS-Comparative-Analysis.csv"; link.click(); URL.revokeObjectURL(link.href);
   } else if (target.dataset.misSort) {
     const key = target.dataset.misSort;
     misTableSort = { key, asc: misTableSort.key === key ? !misTableSort.asc : true }; renderMisPanel();
