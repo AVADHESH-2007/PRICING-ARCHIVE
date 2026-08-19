@@ -79,6 +79,10 @@ body {
   white-space: nowrap;
 }
 
+.nav__button--print {
+  color: #ffcc00;
+}
+
 .nav__button:hover {
   background: transparent;
   color: var(--accent);
@@ -201,6 +205,131 @@ body {
   justify-content: flex-start;
   gap: 8px;
   margin-bottom: 8px;
+}
+
+.circular-header {
+  background: #f8fbff;
+  border: 1px solid #dbe5f0;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.circular-header-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.circular-header-table td {
+  padding: 5px 7px;
+  border: 1px solid #dbe5f0;
+  vertical-align: top;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+  line-height: 1.35;
+}
+
+.circular-header-label {
+  width: 15%;
+  font-weight: 700;
+  color: var(--secondary);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.circular-header-value {
+  width: 35%;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 0.85rem;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.circular-section-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+  margin-top: 4px;
+}
+
+.circular-intro {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 10px 0 8px;
+  text-align: left;
+}
+
+.circular-gst {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 10px 0 14px;
+  text-align: left;
+}
+
+.circular-signatories {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-top: 20px;
+}
+
+.circular-signatory-left {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+  width: 45%;
+}
+
+.circular-signatory-right {
+  width: 45%;
+  text-align: right;
+}
+
+.circular-signatory-line {
+  border-bottom: 1px solid var(--text);
+  margin-bottom: 4px;
+  min-height: 28px;
+}
+
+.circular-signatory-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.circular-signatory-role {
+  font-size: 0.8rem;
+  color: var(--text);
+}
+
+.print-circular-card .pricing-data-table {
+  table-layout: fixed;
+  min-width: 0;
+  width: 100%;
+}
+
+.print-circular-card .col-slno { width: 7%; }
+.print-circular-card .col-heading { width: 28%; }
+.print-circular-card .col-value { width: 35%; }
+.print-circular-card .col-remarks { width: 30%; }
+
+.print-circular-card .pricing-data-table th,
+.print-circular-card .pricing-data-table td {
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  vertical-align: top;
 }
 
 .pricing-data-table {
