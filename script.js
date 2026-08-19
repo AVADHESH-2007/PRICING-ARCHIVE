@@ -46,6 +46,7 @@ let pricingHeadingEntries = getStoredValue("pricingHeadingEntries", []);
 let stateNameEntries = getStoredValue("stateNameEntries", []);
 let financialYearEntries = getStoredValue("financialYearEntries", []);
 let unitRateEntries = getStoredValue("unitRateEntries", []);
+let categoryEntries = getStoredValue("categoryEntries", []);
 let pricingDataRows = [];
 let savedPricingRecords = getStoredValue("savedPricingRecords", []);
 let completedPricingRecords = getStoredValue("completedPricingRecords", []);
@@ -58,6 +59,7 @@ let editingPricingHeadingId = null;
 let editingStateNameId = null;
 let editingFinancialYearId = null;
 let editingUnitRateId = null;
+let editingCategoryId = null;
 let currentMasterDataView = "material";
 let currentAppView = "master";
 let editingReportRecordId = null;
@@ -78,11 +80,14 @@ let misDrillSort = { key: "", asc: true };
 let misDrillExpandedRows = new Set();
 let misApplied = false;
 let printCircularSelectedApr = "";
+let printCircularCcText = "";
+let printCircularSignatoryText = "Dy. General Manager (Fin.)\nAuthorized Signatory";
+let printCircularTermsHtml = "";
 let databaseSyncQueue = Promise.resolve();
 let databaseAvailable = false;
 
 function getApplicationState() {
-  return { masterDataEntries, pricingHeadingEntries, stateNameEntries, financialYearEntries, unitRateEntries, pricingDataRows, savedPricingRecords, completedPricingRecords, aprCounter, deletionAuditLog };
+  return { masterDataEntries, pricingHeadingEntries, stateNameEntries, financialYearEntries, unitRateEntries, categoryEntries, pricingDataRows, savedPricingRecords, completedPricingRecords, aprCounter, deletionAuditLog };
 }
 
 function applyApplicationState(state) {
@@ -91,6 +96,7 @@ function applyApplicationState(state) {
   stateNameEntries = Array.isArray(state.stateNameEntries) ? state.stateNameEntries : [];
   financialYearEntries = Array.isArray(state.financialYearEntries) ? state.financialYearEntries : [];
   unitRateEntries = Array.isArray(state.unitRateEntries) ? state.unitRateEntries : [];
+  categoryEntries = Array.isArray(state.categoryEntries) ? state.categoryEntries : [];
   pricingDataRows = normalizePricingDataRows(state.pricingDataRows || []);
   savedPricingRecords = Array.isArray(state.savedPricingRecords) ? state.savedPricingRecords : [];
   completedPricingRecords = Array.isArray(state.completedPricingRecords) ? state.completedPricingRecords : [];
@@ -197,6 +203,7 @@ function renderMasterDataTable() {
           <option value="state" ${currentMasterDataView === "state" ? "selected" : ""}>STATE NAME ENTRY</option>
           <option value="financial-year" ${currentMasterDataView === "financial-year" ? "selected" : ""}>FINANCIAL YEAR ENTRY</option>
           <option value="unit-rate" ${currentMasterDataView === "unit-rate" ? "selected" : ""}>UNIT RATE ENTRY</option>
+          <option value="category" ${currentMasterDataView === "category" ? "selected" : ""}>CATEGORY ENTRY</option>
         </select>
       </div>
 
@@ -276,6 +283,7 @@ function renderStateNameEntry() {
           <option value="state" selected>STATE NAME ENTRY</option>
           <option value="financial-year">FINANCIAL YEAR ENTRY</option>
           <option value="unit-rate">UNIT RATE ENTRY</option>
+          <option value="category">CATEGORY ENTRY</option>
         </select>
       </div>
 
@@ -338,6 +346,7 @@ function renderFinancialYearEntry() {
           <option value="state">STATE NAME ENTRY</option>
           <option value="financial-year" selected>FINANCIAL YEAR ENTRY</option>
           <option value="unit-rate">UNIT RATE ENTRY</option>
+          <option value="category">CATEGORY ENTRY</option>
         </select>
       </div>
 
@@ -400,6 +409,7 @@ function renderUnitRateEntry() {
           <option value="state">STATE NAME ENTRY</option>
           <option value="financial-year">FINANCIAL YEAR ENTRY</option>
           <option value="unit-rate" selected>UNIT RATE ENTRY</option>
+          <option value="category">CATEGORY ENTRY</option>
         </select>
       </div>
 
@@ -441,6 +451,69 @@ function renderUnitRateEntry() {
                   )
                   .join("")
               : `<tr><td colspan="${canManage ? 3 : 2}" class="empty-state">No unit rates added yet.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function renderCategoryEntry() {
+  const entryToEdit = categoryEntries.find((entry) => entry.id === editingCategoryId) || null;
+  const canManage = isMasterDataAdministrator();
+
+  masterDataPanel.innerHTML = `
+    <div class="master-data-card">
+      <div class="master-data-mode-selector">
+        <label for="masterDataModeSelect">Entry Type</label>
+        <select id="masterDataModeSelect">
+          <option value="material">MATERIAL MASTER DATA ENTRY</option>
+          <option value="pricing">PRICING HEADING ENTRY</option>
+          <option value="state">STATE NAME ENTRY</option>
+          <option value="financial-year">FINANCIAL YEAR ENTRY</option>
+          <option value="unit-rate">UNIT RATE ENTRY</option>
+          <option value="category" ${currentMasterDataView === "category" ? "selected" : ""}>CATEGORY ENTRY</option>
+        </select>
+      </div>
+
+      <div class="panel-heading">
+        <h2>CATEGORY ENTRY</h2>
+      </div>
+      ${buildMasterDataAccessControls()}
+
+      ${canManage ? `<div class="pricing-heading-form">
+        <input id="categoryInput" type="text" value="${escapeHtml(entryToEdit?.name || "")}" placeholder="Enter category name" />
+        <button type="button" class="add-row-btn" id="addCategoryBtn">${entryToEdit ? "Save" : "Add"}</button>
+        ${entryToEdit ? '<button type="button" class="secondary-btn" id="cancelCategoryEditBtn">Cancel</button>' : ""}
+      </div>` : ""}
+
+      <div class="saved-entries-section">
+        <h3>Saved Categories</h3>
+        <table class="master-data-table">
+          <thead>
+            <tr>
+              <th>Sl. No.</th>
+              <th>Category Name</th>
+              ${canManage ? "<th>Actions</th>" : ""}
+            </tr>
+          </thead>
+          <tbody>
+            ${categoryEntries.length
+              ? categoryEntries
+                  .map(
+                    (entry, index) => `
+                      <tr>
+                        <td>${index + 1}</td>
+                        <td>${escapeHtml(entry.name)}</td>
+                        ${canManage ? `<td class="entry-actions">
+                          <button type="button" class="edit-btn" data-action="edit-category" data-id="${entry.id}">Edit</button>
+                          <button type="button" class="delete-btn" data-action="delete-category" data-id="${entry.id}">Delete</button>
+                        </td>` : ""}
+                      </tr>
+                    `
+                  )
+                  .join("")
+              : `<tr><td colspan="${canManage ? 3 : 2}" class="empty-state">No categories added yet.</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -1058,6 +1131,7 @@ function loadPersistedState() {
   aprCounter = Number(getStoredValue("aprCounter", 0)) || 0;
   deletionAuditLog = getStoredValue("deletionAuditLog", []);
   unitRateEntries = getStoredValue("unitRateEntries", []);
+  categoryEntries = getStoredValue("categoryEntries", []);
 }
 
 loadPersistedState();
@@ -1068,12 +1142,13 @@ function persistPricingDataState() {
     setStoredValue("pricingHeadingEntries", pricingHeadingEntries),
     setStoredValue("stateNameEntries", stateNameEntries),
     setStoredValue("financialYearEntries", financialYearEntries),
+    setStoredValue("unitRateEntries", unitRateEntries),
+    setStoredValue("categoryEntries", categoryEntries),
     setStoredValue("pricingDataRows", pricingDataRows),
     setStoredValue("savedPricingRecords", savedPricingRecords),
     setStoredValue("completedPricingRecords", completedPricingRecords),
     setStoredValue("aprCounter", aprCounter),
     setStoredValue("deletionAuditLog", deletionAuditLog),
-    setStoredValue("unitRateEntries", unitRateEntries),
   ].every(Boolean);
   queueDatabaseSave();
   return stored;
@@ -1571,21 +1646,76 @@ function renderPrintCircularPanel() {
           <tbody>${tbody}</tbody>
         </table>
       </div>
-      <div class="circular-gst">GST will be charged extra as applicable.</div>
-      <div class="circular-signatories">
-        <div class="circular-signatory-left">State Incharge (Mkting) / State Finance Incharge</div>
-        <div class="circular-signatory-right">
-          <div class="circular-signatory-line"></div>
-          <div class="circular-signatory-name">Dy. General Manager (Fin.)</div>
-          <div class="circular-signatory-role">Authorized Signatory</div>
+        <div class="circular-gst">GST will be charged extra as applicable.</div>
+        <div class="circular-terms">
+          <div class="circular-terms-label">Other terms and conditions</div>
+          <div class="circular-terms-editor" contenteditable="true" placeholder="Enter other terms and conditions">${printCircularTermsHtml || ""}</div>
         </div>
-      </div>
-      <div class="table-actions pricing-data-actions" style="margin-top:12px">
-        <button type="button" class="add-row-btn" id="printCircularPrintBtn">Print Circular</button>
-      </div>
-      ` : ""}
+        <div style="text-align: right; margin-top: 20px;">
+          <textarea class="circular-signatory-textarea" placeholder="Enter signatory details">${escapeHtml(printCircularSignatoryText || "")}</textarea>
+        </div>
+       <div style="text-align: left; margin-top: 10px;">To State Incharge (Mkting) / State Finance Incharge</div>
+       <div class="circular-cc">
+         <div class="circular-cc-label">CC To</div>
+         <textarea class="circular-cc-textarea" placeholder="Enter Name / Designation / Department / Address">${escapeHtml(printCircularCcText || "")}</textarea>
+       </div>
+       <div class="table-actions pricing-data-actions" style="margin-top:12px">
+         <button type="button" class="add-row-btn" id="printCircularPrintBtn">Print Circular</button>
+        </div>
+       ` : ""}
     </div>
   `;
+  const ccTextarea = masterDataPanel.querySelector(".circular-cc-textarea");
+  if (ccTextarea) {
+    ccTextarea.style.height = "auto";
+    ccTextarea.style.height = ccTextarea.scrollHeight + "px";
+  }
+  const signatoryTextarea = masterDataPanel.querySelector(".circular-signatory-textarea");
+  if (signatoryTextarea) {
+    signatoryTextarea.style.height = "auto";
+    signatoryTextarea.style.height = signatoryTextarea.scrollHeight + "px";
+  }
+  const termsEditor = masterDataPanel.querySelector(".circular-terms-editor");
+  if (termsEditor) {
+    termsEditor.style.height = "auto";
+    termsEditor.style.height = termsEditor.scrollHeight + "px";
+    termsEditor.addEventListener("paste", (e) => {
+      const html = e.clipboardData.getData("text/html");
+      const text = e.clipboardData.getData("text/plain");
+      if (html && html.includes("<table")) {
+        e.preventDefault();
+        const clean = html.replace(/<\?xml[^>]*>/g, "").replace(/<\/?\w+:[^>]*>/g, "");
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(clean, "text/html");
+        const table = doc.querySelector("table");
+        if (table) {
+          table.style.width = "100%";
+          table.style.borderCollapse = "collapse";
+          table.style.tableLayout = "fixed";
+          const cells = table.querySelectorAll("td, th");
+          cells.forEach((cell) => {
+            cell.style.border = "1px solid #cbd5e1";
+            cell.style.padding = "6px 8px";
+            cell.style.wordWrap = "break-word";
+            cell.style.overflowWrap = "anywhere";
+            cell.style.whiteSpace = "normal";
+            cell.style.verticalAlign = "top";
+          });
+          const fragment = document.createDocumentFragment();
+          const div = document.createElement("div");
+          div.appendChild(table);
+          while (div.firstChild) {
+            fragment.appendChild(div.firstChild);
+          }
+          document.execCommand("insertHTML", false, div.innerHTML);
+        } else {
+          document.execCommand("insertText", false, text);
+        }
+        } else {
+          document.execCommand("insertHTML", false, text.replace(/\n/g, "<br>"));
+        }
+    });
+  }
 }
 
 function misNumber(value) { const parsed = Number(String(value ?? "").replace(/[^0-9.-]/g, "")); return Number.isFinite(parsed) ? parsed : 0; }
@@ -1734,6 +1864,8 @@ function renderMasterDataPanel() {
     renderFinancialYearEntry();
   } else if (currentMasterDataView === "unit-rate") {
     renderUnitRateEntry();
+  } else if (currentMasterDataView === "category") {
+    renderCategoryEntry();
   } else {
     renderMasterDataTable();
   }
@@ -2008,6 +2140,55 @@ function handleDeleteUnitRate(id) {
   renderUnitRateEntry();
 }
 
+function handleAddCategory() {
+  if (!requireMasterDataAdministrator()) return;
+  const name = document.getElementById("categoryInput")?.value.trim();
+  if (!name) {
+    return;
+  }
+
+  if (editingCategoryId) {
+    const recordId = editingCategoryId;
+    categoryEntries = categoryEntries.map((entry) =>
+      entry.id === editingCategoryId ? { ...entry, name } : entry
+    );
+    editingCategoryId = null;
+    logMasterDataAudit("Edit", "Category Master", recordId);
+  } else {
+    const recordId = Date.now().toString();
+    categoryEntries.push({ id: recordId, name });
+    logMasterDataAudit("Create", "Category Master", recordId);
+  }
+
+  renderCategoryEntry();
+}
+
+function handleEditCategory(id) {
+  if (!requireMasterDataAdministrator()) return;
+  editingCategoryId = id;
+  renderCategoryEntry();
+}
+
+function handleDeleteCategory(id) {
+  if (!requireMasterDataAdministrator()) return;
+  const entry = categoryEntries.find((item) => item.id === id);
+  if (!entry) {
+    return;
+  }
+
+  const confirmed = window.confirm(`Delete category "${entry.name}"?`);
+  if (!confirmed) {
+    return;
+  }
+
+  categoryEntries = categoryEntries.filter((item) => item.id !== id);
+  logMasterDataAudit("Delete", "Category Master", entry.id);
+  if (editingCategoryId === id) {
+    editingCategoryId = null;
+  }
+  renderCategoryEntry();
+}
+
 masterDataButton.addEventListener("click", () => {
   currentMasterDataView = "material";
   currentAppView = "master";
@@ -2051,6 +2232,9 @@ printCircularButton.addEventListener("click", () => {
   document.body.classList.add("pricing-view-active");
   masterDataPanel.classList.remove("hidden");
   printCircularSelectedApr = "";
+  printCircularCcText = "";
+  printCircularSignatoryText = "Dy. General Manager (Fin.)\nAuthorized Signatory";
+  printCircularTermsHtml = "";
   renderPrintCircularPanel();
 });
 
@@ -2186,6 +2370,15 @@ masterDataPanel.addEventListener("click", (event) => {
   } else if (target.id === "cancelUnitRateEditBtn") {
     editingUnitRateId = null;
     renderUnitRateEntry();
+  } else if (target.id === "addCategoryBtn") {
+    handleAddCategory();
+  } else if (target.id === "cancelCategoryEditBtn") {
+    editingCategoryId = null;
+    renderCategoryEntry();
+  } else if (target.matches("[data-action='edit-category']")) {
+    handleEditCategory(target.dataset.id);
+  } else if (target.matches("[data-action='delete-category']")) {
+    handleDeleteCategory(target.dataset.id);
   } else if (target.id === "clearAllFiltersBtn") {
     savedRecordFilters = {};
     syncSelectionToFilteredRecords();
@@ -2301,10 +2494,10 @@ masterDataPanel.addEventListener("click", (event) => {
     const rows = selected.map((row, i) => {
       const vals = getReportRowDisplayValues(row, i);
       return `<tr>
-        <td>${escapeHtml(vals.slNo || "")}</td>
-        <td>${escapeHtml(vals.pricingHeading || "")}</td>
-        <td>${escapeHtml(vals.value || "")}</td>
-        <td>${escapeHtml(vals.remarks || "")}</td>
+        <td class="col-slno">${escapeHtml(vals.slNo || "")}</td>
+        <td class="col-heading">${escapeHtml(vals.pricingHeading || "")}</td>
+        <td class="col-value" style="text-align:right">${escapeHtml(vals.value || "")}</td>
+        <td class="col-remarks">${escapeHtml(vals.remarks || "")}</td>
       </tr>`;
     }).join("");
 
@@ -2429,10 +2622,18 @@ masterDataPanel.addEventListener("click", (event) => {
     .circular-table tbody tr:nth-child(even) {
       background: #f8fafc;
     }
-    .col-slno { width: 7%; }
-    .col-heading { width: 28%; }
-    .col-value { width: 35%; }
-    .col-remarks { width: 30%; }
+    .col-slno { width: 6%; }
+    .col-heading { width: 40%; }
+    .col-value { width: 31%; }
+    .col-remarks { width: 23%; }
+    .circular-table .col-heading {
+      white-space: normal;
+      overflow-wrap: normal;
+      word-wrap: normal;
+    }
+    .circular-table td.col-value {
+      text-align: right !important;
+    }
     .circular-intro {
       font-size: 10pt;
       font-weight: 600;
@@ -2449,8 +2650,9 @@ masterDataPanel.addEventListener("click", (event) => {
     }
     .circular-signatories {
       display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 10px;
       margin-top: 24px;
       page-break-inside: avoid;
     }
@@ -2458,10 +2660,11 @@ masterDataPanel.addEventListener("click", (event) => {
       font-size: 9.5pt;
       font-weight: 700;
       color: #233142;
-      width: 45%;
+      align-self: flex-start;
+      width: auto;
     }
     .circular-signatory-right {
-      width: 45%;
+      width: auto;
       text-align: right;
     }
     .circular-signatory-line {
@@ -2478,11 +2681,86 @@ masterDataPanel.addEventListener("click", (event) => {
       font-size: 9pt;
       color: #233142;
     }
+    .circular-signatory-box {
+      width: 100%;
+      padding: 6px 8px;
+      border: none;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 9.5pt;
+      color: #233142;
+      line-height: 1.35;
+      box-sizing: border-box;
+      text-align: right;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      overflow-wrap: anywhere;
+    }
+    .circular-terms {
+      margin-top: 18px;
+      page-break-inside: avoid;
+    }
+    .circular-terms-label {
+      font-size: 9.5pt;
+      font-weight: 700;
+      color: #233142;
+      margin-bottom: 4px;
+    }
+    .circular-terms-box {
+      width: 100%;
+      padding: 6px 8px;
+      border: 1px solid #cbd5e1;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 9.5pt;
+      color: #233142;
+      line-height: 1.35;
+      box-sizing: border-box;
+      word-wrap: break-word;
+      overflow-wrap: anywhere;
+    }
+    .circular-terms-box table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      margin: 4px 0;
+    }
+    .circular-terms-box td,
+    .circular-terms-box th {
+      border: 1px solid #cbd5e1;
+      padding: 6px 8px;
+      word-wrap: break-word;
+      overflow-wrap: anywhere;
+      white-space: normal;
+      vertical-align: top;
+    }
+    .circular-cc {
+      margin-top: 18px;
+      page-break-inside: avoid;
+    }
+    .circular-cc-label {
+      font-size: 9.5pt;
+      font-weight: 700;
+      color: #233142;
+      margin-bottom: 4px;
+    }
+    .circular-cc-box {
+      width: 100%;
+      padding: 6px 8px;
+      border: none;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 9.5pt;
+      color: #233142;
+      line-height: 1.35;
+      box-sizing: border-box;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      overflow-wrap: anywhere;
+    }
     @media print {
       body { margin: 0; }
       .circular-wrap { max-width: none; margin: 0; }
       .circular-table tr { page-break-inside: avoid; }
       .circular-signatories { page-break-inside: avoid; }
+      .circular-cc { page-break-inside: avoid; }
     }
   </style>
 </head>
@@ -2530,15 +2808,19 @@ masterDataPanel.addEventListener("click", (event) => {
        </thead>
        <tbody>${rows}</tbody>
      </table>
-     <div class="circular-gst">GST will be charged extra as applicable.</div>
-     <div class="circular-signatories">
-       <div class="circular-signatory-left">State Incharge (Mkting) / State Finance Incharge</div>
-       <div class="circular-signatory-right">
-         <div class="circular-signatory-line"></div>
-         <div class="circular-signatory-name">Dy. General Manager (Fin.)</div>
-         <div class="circular-signatory-role">Authorized Signatory</div>
+         <div class="circular-gst">GST will be charged extra as applicable.</div>
+         <div class="circular-terms">
+           <div class="circular-terms-label">Other terms and conditions</div>
+            <div class="circular-terms-box">${printCircularTermsHtml || ""}</div>
+         </div>
+         <div style="text-align: right; margin-top: 24px; page-break-inside: avoid;">
+           <div class="circular-signatory-box">${escapeHtml(printCircularSignatoryText || "").replace(/\n/g, "<br>")}</div>
+         </div>
+       <div style="text-align: left; margin-top: 10px;">To State Incharge (Mkting) / State Finance Incharge</div>
+       <div class="circular-cc">
+         <div class="circular-cc-label">CC To</div>
+         <div class="circular-cc-box">${escapeHtml(printCircularCcText || "").replace(/\n/g, "<br>")}</div>
        </div>
-     </div>
    </div>
   <script>
     window.onload = function() {
@@ -2572,6 +2854,18 @@ masterDataPanel.addEventListener("change", (event) => {
   } else if (event.target.id === "printCircularAprSelect") {
     printCircularSelectedApr = event.target.value || "";
     renderPrintCircularPanel();
+  } else if (event.target.classList.contains("circular-cc-textarea")) {
+    printCircularCcText = event.target.value || "";
+    event.target.style.height = "auto";
+    event.target.style.height = event.target.scrollHeight + "px";
+  } else if (event.target.classList.contains("circular-signatory-textarea")) {
+    printCircularSignatoryText = event.target.value || "";
+    event.target.style.height = "auto";
+    event.target.style.height = event.target.scrollHeight + "px";
+  } else if (event.target.classList.contains("circular-terms-editor")) {
+    printCircularTermsHtml = event.target.innerHTML || "";
+    event.target.style.height = "auto";
+    event.target.style.height = event.target.scrollHeight + "px";
   } else if (event.target.id === "masterDataModeSelect") {
     currentMasterDataView = event.target.value;
     renderMasterDataPanel();
