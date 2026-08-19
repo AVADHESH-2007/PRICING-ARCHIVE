@@ -18,6 +18,7 @@ const pricingDataButton = document.getElementById("pricingDataBtn");
 const savedPricingRecordsButton = document.getElementById("savedPricingRecordsBtn");
 const reportsButton = document.getElementById("reportsBtn");
 const misButton = document.getElementById("misBtn");
+const printCircularButton = document.getElementById("printCircularBtn");
 const masterDataPanel = document.getElementById("masterDataPanel");
 
 function getStoredValue(key, fallback) {
@@ -76,6 +77,7 @@ let misExpandedNodes = new Set();
 let misDrillSort = { key: "", asc: true };
 let misDrillExpandedRows = new Set();
 let misApplied = false;
+let printCircularSelectedApr = "";
 let databaseSyncQueue = Promise.resolve();
 let databaseAvailable = false;
 
@@ -1466,6 +1468,126 @@ function renderMisPanel() {
     </div>`;
 }
 
+function formatDateOnly(dateString) {
+  if (!dateString) return "";
+  const parts = dateString.split(",");
+  return parts[0].trim();
+}
+
+function renderPrintCircularPanel() {
+  const aprNumbers = [...new Set(completedPricingRecords.map((r) => r.aprNumber).filter(Boolean))];
+  aprNumbers.sort((a, b) => {
+    const numA = parseInt(String(a).replace(/\D/g, ""), 10) || 0;
+    const numB = parseInt(String(b).replace(/\D/g, ""), 10) || 0;
+    return numA - numB || String(a).localeCompare(String(b));
+  });
+
+  const selectedAprRecords = printCircularSelectedApr
+    ? completedPricingRecords.filter((r) => r.aprNumber === printCircularSelectedApr)
+    : [];
+  const records = selectedAprRecords.map((row, index) => getReportRowDisplayValues(row, index));
+
+  const aprSelectHtml = `
+    <div class="pricing-heading-form">
+      <select id="printCircularAprSelect">
+        <option value="">Select APR No.</option>
+        ${aprNumbers.map((apr) => `<option value="${escapeHtml(apr)}" ${printCircularSelectedApr === apr ? "selected" : ""}>${escapeHtml(apr)}</option>`).join("")}
+      </select>
+    </div>`;
+
+  const noAprMessage = !printCircularSelectedApr
+    ? `<div class="empty-state" style="padding:40px 20px;font-size:1.1rem">Please select an APR No. to generate the Pricing Circular.</div>`
+    : "";
+
+  let circularHeader = "";
+  if (selectedAprRecords.length > 0) {
+    const first = records[0];
+    const uniqueMaterials = [...new Set(selectedAprRecords.map((r) => r.materialId).filter(Boolean))].map((mid) => masterDataEntries.find((m) => m.id === mid)?.description).filter(Boolean);
+    const uniqueBatchNos = [...new Set(selectedAprRecords.map((r) => r.batchNo).filter(Boolean))];
+    const circularDate = formatDateOnly(selectedAprRecords[0].completedAt || "");
+    circularHeader = `
+      <table class="circular-header-table">
+        <tr>
+          <td class="circular-header-label">APR No. :-</td>
+          <td class="circular-header-value">${escapeHtml(first.aprNumber || "")}</td>
+          <td class="circular-header-label">Division :-</td>
+          <td class="circular-header-value">${escapeHtml(first.division || "")}</td>
+          <td class="circular-header-label">Material Description :-</td>
+          <td class="circular-header-value">${escapeHtml(uniqueMaterials.join(", ") || "")}</td>
+        </tr>
+        <tr>
+          <td class="circular-header-label">Circular Date :-</td>
+          <td class="circular-header-value">${escapeHtml(circularDate)}</td>
+          <td class="circular-header-label">State :-</td>
+          <td class="circular-header-value">${escapeHtml(first.state || "")}</td>
+          <td class="circular-header-label">Batch No. :-</td>
+          <td class="circular-header-value">${escapeHtml(uniqueBatchNos.join(", ") || "")}</td>
+        </tr>
+        <tr>
+          <td class="circular-header-label">Effective From :-</td>
+          <td class="circular-header-value">${escapeHtml(circularDate)}</td>
+          <td class="circular-header-label">Financial Year :-</td>
+          <td class="circular-header-value">${escapeHtml(first.financialYear || "")}</td>
+          <td class="circular-header-label">Period :-</td>
+          <td class="circular-header-value">${escapeHtml(first.period || "")}</td>
+        </tr>
+      </table>`;
+  }
+
+  const thead = `
+    <tr>
+      <th class="col-slno">Sl. No.</th>
+      <th class="col-heading">Pricing Heading</th>
+      <th class="col-value">Value / Amount / Text</th>
+      <th class="col-remarks">Remarks</th>
+    </tr>`;
+
+  const tbody = records.length
+    ? records.map((r, i) => `
+        <tr>
+          <td class="col-slno">${escapeHtml(r.slNo || "")}</td>
+          <td class="col-heading">${escapeHtml(r.pricingHeading || "")}</td>
+          <td class="col-value">${formatMultilineText(r.value)}</td>
+          <td class="col-remarks">${escapeHtml(r.remarks || "")}</td>
+        </tr>
+      `).join("")
+    : "";
+
+  masterDataPanel.innerHTML = `
+    <div class="master-data-card pricing-data-card print-circular-card">
+      <div class="panel-heading">
+        <h2>PRINT CIRCULAR</h2>
+        <p>Select an APR No. to generate the pricing circular.</p>
+      </div>
+      ${aprSelectHtml}
+      ${noAprMessage}
+      ${circularHeader}
+      ${selectedAprRecords.length ? `
+      <div class="circular-intro">The following pricing and sales terms have been approved for details mentioned above.</div>
+      <div class="circular-section-title">Pricing Details</div>
+      <div class="table-wrapper saved-table-wrapper">
+        <table class="master-data-table pricing-data-table">
+          <thead><tr>${thead}</thead>
+          <tbody>${tbody}</tbody>
+        </table>
+      </div>
+      <div class="circular-gst">GST will be charged extra as applicable.</div>
+      <div class="circular-signatories">
+        <div class="circular-signatory-left">State Incharge (Mkting) / State Finance Incharge</div>
+        <div class="circular-signatory-right">
+          <div class="circular-signatory-line"></div>
+          <div class="circular-signatory-name">Dy. General Manager (Fin.)</div>
+          <div class="circular-signatory-role">Authorized Signatory</div>
+        </div>
+      </div>
+      <div class="table-actions pricing-data-actions" style="margin-top:12px">
+        <button type="button" class="add-row-btn" id="printCircularPrintBtn">Print Circular</button>
+      </div>
+      ` : ""}
+    </div>
+  `;
+}
+
 function misNumber(value) { const parsed = Number(String(value ?? "").replace(/[^0-9.-]/g, "")); return Number.isFinite(parsed) ? parsed : 0; }
 function misFormat(value) { return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(value || 0); }
 function misChart(groups, key, line) {
@@ -1924,11 +2046,20 @@ misButton.addEventListener("click", () => {
   renderMisPanel();
 });
 
+printCircularButton.addEventListener("click", () => {
+  currentAppView = "print-circular";
+  document.body.classList.add("pricing-view-active");
+  masterDataPanel.classList.remove("hidden");
+  printCircularSelectedApr = "";
+  renderPrintCircularPanel();
+});
+
 function renderCurrentAppView() {
   if (currentAppView === "pricing") renderPricingDataTable();
   else if (currentAppView === "saved-pricing-records") renderSavedPricingRecordsPanel();
   else if (currentAppView === "reports") renderReportsPanel();
   else if (currentAppView === "mis") renderMisPanel();
+  else if (currentAppView === "print-circular") renderPrintCircularPanel();
   else renderMasterDataPanel();
 }
 
@@ -2139,6 +2270,285 @@ masterDataPanel.addEventListener("click", (event) => {
     renderReportsPanel();
   } else if (target.matches("[data-action='admin-delete-report']")) {
     handleAdminDeleteReport(target.dataset.id);
+  } else if (target.id === "printCircularPrintBtn") {
+    if (!printCircularSelectedApr) {
+      window.alert("Please select an APR No. before printing.");
+      return;
+    }
+    const selected = printCircularSelectedApr
+      ? completedPricingRecords.filter((r) => r.aprNumber === printCircularSelectedApr)
+      : [];
+    if (!selected.length) return;
+
+    const records = selected.map((row, index) => getReportRowDisplayValues(row, index));
+    const first = records[0];
+    const uniqueMaterials = [...new Set(selected.map((r) => r.materialId).filter(Boolean))].map((mid) => masterDataEntries.find((m) => m.id === mid)?.description).filter(Boolean);
+    const uniqueBatchNos = [...new Set(selected.map((r) => r.batchNo).filter(Boolean))];
+    const circularDate = formatDateOnly(selected[0].completedAt || "");
+
+    const headerInfo = {
+      aprNumber: first.aprNumber || "",
+      circularDate: circularDate,
+      effectiveFrom: circularDate,
+      division: first.division || "",
+      state: first.state || "",
+      financialYear: first.financialYear || "",
+      period: first.period || "",
+      materials: uniqueMaterials.join(", ") || "",
+      batchNos: uniqueBatchNos.join(", ") || ""
+    };
+
+    const rows = selected.map((row, i) => {
+      const vals = getReportRowDisplayValues(row, i);
+      return `<tr>
+        <td>${escapeHtml(vals.slNo || "")}</td>
+        <td>${escapeHtml(vals.pricingHeading || "")}</td>
+        <td>${escapeHtml(vals.value || "")}</td>
+        <td>${escapeHtml(vals.remarks || "")}</td>
+      </tr>`;
+    }).join("");
+
+    const printWindow = window.open("", "_blank", "width=1200,height=800");
+    if (!printWindow) { window.alert("Unable to open print window. Please allow popups for this site."); return; }
+    printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <title>Pricing Circular - ${escapeHtml(headerInfo.aprNumber)}</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 18mm 16mm 24mm 16mm;
+      @bottom-center {
+        content: "Page " counter(page);
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 8pt;
+        color: #475569;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10.5pt;
+      color: #233142;
+      line-height: 1.4;
+      background: white;
+    }
+    .circular-wrap {
+      max-width: 180mm;
+      margin: 0 auto;
+    }
+    .circular-title {
+      text-align: center;
+      font-size: 20pt;
+      font-weight: 700;
+      color: #003366;
+      margin-bottom: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .circular-details {
+      margin-bottom: 14px;
+      padding: 12px 14px;
+      background: #f8fbff;
+      border: 1px solid #dbe5f0;
+      border-radius: 4px;
+    }
+    .circular-header-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    .circular-header-table td {
+      padding: 5px 7px;
+      border: 1px solid #dbe5f0;
+      vertical-align: top;
+      word-wrap: break-word;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      white-space: normal;
+      line-height: 1.35;
+    }
+    .circular-header-label {
+      width: 15%;
+      font-weight: 700;
+      color: #003366;
+      white-space: normal;
+      font-size: 8pt;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .circular-header-value {
+      width: 35%;
+      color: #233142;
+      font-weight: 600;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      white-space: normal;
+      font-size: 9pt;
+    }
+    .circular-section-title {
+      font-size: 12pt;
+      font-weight: 700;
+      color: #003366;
+      margin: 14px 0 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .circular-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    .circular-table thead {
+      display: table-header-group;
+    }
+    .circular-table thead tr {
+      background: #003366 !important;
+      color: white;
+    }
+    .circular-table th {
+      padding: 7px 8px;
+      border: 1px solid #cbd5e1;
+      text-align: left;
+      font-size: 9pt;
+      font-weight: 700;
+      vertical-align: middle;
+      word-wrap: break-word;
+      overflow-wrap: anywhere;
+    }
+    .circular-table td {
+      padding: 6px 8px;
+      border: 1px solid #cbd5e1;
+      text-align: left;
+      font-size: 9.5pt;
+      vertical-align: top;
+      word-wrap: break-word;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+    }
+    .circular-table tbody tr:nth-child(even) {
+      background: #f8fafc;
+    }
+    .col-slno { width: 7%; }
+    .col-heading { width: 28%; }
+    .col-value { width: 35%; }
+    .col-remarks { width: 30%; }
+    .circular-intro {
+      font-size: 10pt;
+      font-weight: 600;
+      color: #233142;
+      margin: 12px 0 8px;
+      text-align: left;
+    }
+    .circular-gst {
+      font-size: 10pt;
+      font-weight: 600;
+      color: #233142;
+      margin: 10px 0 14px;
+      text-align: left;
+    }
+    .circular-signatories {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-top: 24px;
+      page-break-inside: avoid;
+    }
+    .circular-signatory-left {
+      font-size: 9.5pt;
+      font-weight: 700;
+      color: #233142;
+      width: 45%;
+    }
+    .circular-signatory-right {
+      width: 45%;
+      text-align: right;
+    }
+    .circular-signatory-line {
+      border-bottom: 1px solid #233142;
+      margin-bottom: 4px;
+      min-height: 32px;
+    }
+    .circular-signatory-name {
+      font-size: 9.5pt;
+      font-weight: 700;
+      color: #233142;
+    }
+    .circular-signatory-role {
+      font-size: 9pt;
+      color: #233142;
+    }
+    @media print {
+      body { margin: 0; }
+      .circular-wrap { max-width: none; margin: 0; }
+      .circular-table tr { page-break-inside: avoid; }
+      .circular-signatories { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="circular-wrap">
+     <div class="circular-title">Pricing Circular</div>
+     <div class="circular-details">
+       <table class="circular-header-table">
+         <tr>
+           <td class="circular-header-label">APR No. :-</td>
+           <td class="circular-header-value">${escapeHtml(headerInfo.aprNumber || "")}</td>
+           <td class="circular-header-label">Division :-</td>
+           <td class="circular-header-value">${escapeHtml(headerInfo.division || "")}</td>
+           <td class="circular-header-label">Material Description :-</td>
+           <td class="circular-header-value">${escapeHtml(headerInfo.materials || "")}</td>
+         </tr>
+         <tr>
+           <td class="circular-header-label">Circular Date :-</td>
+           <td class="circular-header-value">${escapeHtml(headerInfo.circularDate || "")}</td>
+           <td class="circular-header-label">State :-</td>
+           <td class="circular-header-value">${escapeHtml(headerInfo.state || "")}</td>
+           <td class="circular-header-label">Batch No. :-</td>
+           <td class="circular-header-value">${escapeHtml(headerInfo.batchNos || "")}</td>
+         </tr>
+         <tr>
+           <td class="circular-header-label">Effective From :-</td>
+           <td class="circular-header-value">${escapeHtml(headerInfo.effectiveFrom || "")}</td>
+           <td class="circular-header-label">Financial Year :-</td>
+           <td class="circular-header-value">${escapeHtml(headerInfo.financialYear || "")}</td>
+           <td class="circular-header-label">Period :-</td>
+           <td class="circular-header-value">${escapeHtml(headerInfo.period || "")}</td>
+         </tr>
+       </table>
+     </div>
+     <div class="circular-section-title">Pricing Details</div>
+     <div class="circular-intro">The following pricing and sales terms have been approved for details mentioned above.</div>
+     <table class="circular-table">
+       <thead>
+         <tr>
+           <th class="col-slno">Sl. No.</th>
+           <th class="col-heading">Pricing Heading</th>
+           <th class="col-value">Value / Amount / Text</th>
+           <th class="col-remarks">Remarks</th>
+         </tr>
+       </thead>
+       <tbody>${rows}</tbody>
+     </table>
+     <div class="circular-gst">GST will be charged extra as applicable.</div>
+     <div class="circular-signatories">
+       <div class="circular-signatory-left">State Incharge (Mkting) / State Finance Incharge</div>
+       <div class="circular-signatory-right">
+         <div class="circular-signatory-line"></div>
+         <div class="circular-signatory-name">Dy. General Manager (Fin.)</div>
+         <div class="circular-signatory-role">Authorized Signatory</div>
+       </div>
+     </div>
+   </div>
+  <script>
+    window.onload = function() {
+      window.print();
+      setTimeout(function() { window.close(); }, 100);
+    };
+  <\/script>
+</body>
+</html>`);
+    printWindow.document.close();
   }
 });
 
@@ -2159,6 +2569,9 @@ masterDataPanel.addEventListener("change", (event) => {
       selectedSavedRowIds.delete(rowId);
     }
     renderSavedPricingRecordsPanel();
+  } else if (event.target.id === "printCircularAprSelect") {
+    printCircularSelectedApr = event.target.value || "";
+    renderPrintCircularPanel();
   } else if (event.target.id === "masterDataModeSelect") {
     currentMasterDataView = event.target.value;
     renderMasterDataPanel();
