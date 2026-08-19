@@ -141,7 +141,7 @@ const MIS_FILTERS = [
   { key: "financialYear", label: "Financial Year" }, { key: "division", label: "Division" },
   { key: "state", label: "State" }, { key: "material", label: "Material Description" },
   { key: "aprNumber", label: "APR No." }, { key: "batchNo", label: "Batch no." }, { key: "period", label: "Period" },
-  { key: "genMkfedPvt", label: "GEN/MKFED/PVT." }, { key: "pricingHeading", label: "Pricing Heading" },
+  { key: "category", label: "CATEGORY" }, { key: "pricingHeading", label: "Pricing Heading" },
   { key: "remarks", label: "Remarks" }, { key: "completedAt", label: "Completed On" },
 ];
 
@@ -593,7 +593,7 @@ function buildEntryRowHtml(row, index) {
       <td><input type="text" class="pricing-batchno-input" data-row-id="${row.id}" value="${escapeHtml(row.batchNo || "")}" placeholder="Enter batch no." /></td>
       <td class="auto-slno-cell">${index + 1}</td>
       <td><textarea class="pricing-period-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter period">${escapeHtml(row.period)}</textarea></td>
-      <td><select class="pricing-gen-mkfed-pvt-select" data-row-id="${row.id}"><option value="">Select classification</option><option value="GENERAL" ${row.genMkfedPvt === "GENERAL" ? "selected" : ""}>GENERAL</option><option value="MARKFED" ${row.genMkfedPvt === "MARKFED" ? "selected" : ""}>MARKFED</option><option value="PRIVATE" ${row.genMkfedPvt === "PRIVATE" ? "selected" : ""}>PRIVATE</option></select></td>
+      <td><select class="pricing-category-select" data-row-id="${row.id}"><option value="">Select category</option>${categoryEntries.map((e) => `<option value="${escapeHtml(e.name)}" ${row.category === e.name ? "selected" : ""}>${escapeHtml(e.name)}</option>`).join("")}</select></td>
       <td><select class="pricing-unit-rate-select" data-row-id="${row.id}"><option value="">Select unit rate</option>${unitRateEntries.map((e) => `<option value="${escapeHtml(e.name)}" ${row.unitRate === e.name ? "selected" : ""}>${escapeHtml(e.name)}</option>`).join("")}</select></td>
       <td><select class="pricing-heading-select" data-row-id="${row.id}"><option value="">Select pricing heading</option>${pricingHeadingEntries.map((e) => `<option value="${e.id}" ${e.id === row.pricingHeadingId ? "selected" : ""}>${escapeHtml(e.description)}</option>`).join("")}</select></td>
       <td><textarea class="pricing-value-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter value, slabs, conditions, formulas, or text">${escapeHtml(row.value)}</textarea></td>
@@ -614,7 +614,7 @@ const PRICING_DISPLAY_COLS = [
   { key: "batchNo",       label: "BATCH NO.",            type: "text" },
   { key: "slNo",          label: "SL No.",               type: "text" },
   { key: "period",        label: "Period",               type: "text" },
-  { key: "genMkfedPvt",   label: "GEN/MKFED/PVT.",        type: "dropdown" },
+  { key: "category",   label: "CATEGORY",            type: "dropdown" },
   { key: "unitRate",      label: "UNIT RATE",            type: "text" },
   { key: "pricingHeading",label: "Pricing Heading",      type: "text" },
   { key: "value",         label: "Value / Amount / Text", type: "text" },
@@ -632,7 +632,7 @@ function getCommonRowDisplayValues(row, index) {
     state:         stateNameEntries.find((e) => e.id === row.stateId)?.name || "",
     financialYear: financialYearEntries.find((e) => e.id === row.financialYearId)?.year || "",
     period:        row.period || "",
-    genMkfedPvt:   row.genMkfedPvt || "",
+    category:      categoryEntries.find((e) => e.name)?.name || row.category || "",
     unitRate:      row.unitRate || "",
     material:      masterDataEntries.find((e) => e.id === row.materialId)?.description || "",
     pricingHeading: pricingHeadingEntries.find((e) => e.id === row.pricingHeadingId)?.description || "",
@@ -953,7 +953,7 @@ function buildSavedRowHtml(row, index) {
         <td><input type="text" class="saved-batchno-input" data-row-id="${row.id}" value="${escapeHtml(row.batchNo || "")}" placeholder="Enter batch no." /></td>
         <td><input type="text" class="saved-slno-input" data-row-id="${row.id}" value="${escapeHtml(row.slNo || "")}" placeholder="Enter SL No." /></td>
         <td><textarea class="saved-period-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter period">${escapeHtml(row.period)}</textarea></td>
-        <td><select class="saved-gen-mkfed-pvt-select" data-row-id="${row.id}"><option value="">Select classification</option><option value="GENERAL" ${row.genMkfedPvt === "GENERAL" ? "selected" : ""}>GENERAL</option><option value="MARKFED" ${row.genMkfedPvt === "MARKFED" ? "selected" : ""}>MARKFED</option><option value="PRIVATE" ${row.genMkfedPvt === "PRIVATE" ? "selected" : ""}>PRIVATE</option></select></td>
+        <td><select class="saved-category-select" data-row-id="${row.id}"><option value="">Select category</option>${categoryEntries.map((e) => `<option value="${escapeHtml(e.name)}" ${row.category === e.name ? "selected" : ""}>${escapeHtml(e.name)}</option>`).join("")}</select></td>
         <td><input type="text" class="saved-unit-rate-input" data-row-id="${row.id}" value="${escapeHtml(row.unitRate || "")}" placeholder="Enter unit rate" /></td>
         <td><select class="saved-heading-select" data-row-id="${row.id}"><option value="">Select pricing heading</option>${pricingHeadingEntries.map((e) => `<option value="${e.id}" ${e.id === row.pricingHeadingId ? "selected" : ""}>${escapeHtml(e.description)}</option>`).join("")}</select></td>
         <td><textarea class="saved-value-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter value, slabs, conditions, formulas, or text">${escapeHtml(row.value)}</textarea></td>
@@ -976,7 +976,7 @@ function buildSavedRowHtml(row, index) {
       <td>${escapeHtml(row.batchNo || "")}</td>
       <td>${escapeHtml(row.slNo || "")}</td>
       <td>${escapeHtml(row.period || "")}</td>
-      <td>${escapeHtml(row.genMkfedPvt || "Not classified")}</td>
+      <td>${escapeHtml(row.category || "Not classified")}</td>
       <td>${escapeHtml(row.unitRate || "")}</td>
       <td>${escapeHtml(pricingHeadingEntries.find((e) => e.id === row.pricingHeadingId)?.description || "")}</td>
       <td>${formatMultilineText(row.value)}</td>
@@ -1001,7 +1001,7 @@ function renderPricingDataTable() {
       <th>BATCH NO.</th>
       <th>Sl. No.</th>
       <th>Period</th>
-      <th>GEN/MKFED/PVT.</th>
+      <th>CATEGORY</th>
       <th>UNIT RATE</th>
       <th>Pricing Heading</th>
       <th>Value / Amount / Text</th>
@@ -1086,7 +1086,7 @@ function createPricingDataRow() {
     stateId: "",
     financialYearId: "",
     period: "",
-    genMkfedPvt: "",
+    category: "",
     unitRate: "",
     materialId: "",
     pricingHeadingId: "",
@@ -1104,7 +1104,7 @@ function isBlankPricingDataRow(row) {
     row.stateId,
     row.financialYearId,
     row.period,
-    row.genMkfedPvt,
+    row.category,
     row.unitRate,
     row.materialId,
     row.pricingHeadingId,
@@ -1200,8 +1200,11 @@ function validatePricingDataRows() {
 }
 
 function validateSavedRow(row) {
-  const validClassifications = ["GENERAL", "MARKFED", "PRIVATE"];
-  if (!row || !row.division || !row.stateId || !row.financialYearId || !String(row.period || "").trim() || !validClassifications.includes(row.genMkfedPvt) || !row.materialId || !row.pricingHeadingId || !String(row.value || "").trim()) {
+  const validCategories = categoryEntries.map((e) => e.name);
+  if (!validCategories.length) {
+    return { valid: false, message: "No Category is available. Please create Category in Master Data before entering Pricing Data." };
+  }
+  if (!row || !row.division || !row.stateId || !row.financialYearId || !String(row.period || "").trim() || !validCategories.includes(row.category) || !row.materialId || !row.pricingHeadingId || !String(row.value || "").trim()) {
     return { valid: false, message: "Please complete all fields before saving." };
   }
   return { valid: true, message: "" };
@@ -1292,7 +1295,7 @@ function handleCompleteSavedRows() {
     const invalidRows = selectedRecords.filter((row) => !validateSavedRow(row).valid);
     if (invalidRows.length) {
       console.warn("Completion blocked: selected records failed validation.", invalidRows);
-      pricingDataValidationMessage = "One or more selected records are incomplete or do not have a valid GEN/MKFED/PVT. classification. Please fix them before completing.";
+      pricingDataValidationMessage = "One or more selected records are incomplete or do not have a valid CATEGORY. Please fix them before completing.";
       renderSavedPricingRecordsPanel();
       return;
     }
@@ -1409,7 +1412,7 @@ function renderReportsPanel() {
                       <td>${escapeHtml(display.batchNo)}</td>
                       <td>${escapeHtml(display.slNo)}</td>
                       <td>${escapeHtml(display.period)}</td>
-                      <td>${escapeHtml(display.genMkfedPvt || "Not classified")}</td>
+                      <td>${escapeHtml(display.category || "Not classified")}</td>
                       <td>${escapeHtml(display.unitRate)}</td>
                       <td>${escapeHtml(display.pricingHeading)}</td>
                       <td>${formatMultilineText(display.value)}</td>
@@ -1430,8 +1433,8 @@ function renderReportsPanel() {
 }
 function renderMisPanel() {
   const source = completedPricingRecords.map((row, index) => ({ row, values: getReportRowDisplayValues(row, index) }));
-  const optionsFor = (key) => key === "genMkfedPvt"
-    ? ["GENERAL", "MARKFED", "PRIVATE"]
+  const optionsFor = (key) => key === "category"
+    ? [...new Set(categoryEntries.map((e) => e.name).filter((value) => value !== "" && value != null))].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }))
     : [...new Set(source.map((item) => item.values[key]).filter((value) => value !== "" && value != null))].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
   const activeFilters = MIS_FILTERS.reduce((filters, filter) => ({ ...filters, [filter.key]: misFilters[filter.key] || [] }), {});
 
@@ -1442,7 +1445,7 @@ function renderMisPanel() {
     { key: "state",          label: "State" },
     { key: "financialYear",  label: "Financial Year" },
     { key: "period",         label: "Period" },
-    { key: "genMkfedPvt",    label: "GEN/MKFED/PVT." },
+    { key: "category",    label: "CATEGORY" },
     { key: "material",       label: "Material Description" },
     { key: "pricingHeading", label: "Pricing Heading" },
     { key: "unitRate",       label: "Unit Rate" },
@@ -1795,7 +1798,7 @@ function misHierarchy(records, level = 0, path = "") {
 }
 
 function misHierarchyRecords(records) {
-  const columns = ["aprNumber", "slNo", "batchNo", "division", "state", "financialYear", "period", "genMkfedPvt", "material", "pricingHeading", "value", "remarks", "completedAt", "completedId"];
+  const columns = ["aprNumber", "slNo", "batchNo", "division", "state", "financialYear", "period", "category", "material", "pricingHeading", "value", "remarks", "completedAt", "completedId"];
   const labels = Object.fromEntries(REPORT_COLS.map((c) => [c.key, c.label]));
   return `<div class="mis-tree-records">
     <strong>Detailed Records (${records.length})</strong>
@@ -2313,7 +2316,7 @@ masterDataPanel.addEventListener("click", (event) => {
     if (document.fullscreenElement) document.exitFullscreen?.(); else dashboard?.requestFullscreen?.();
   } else if (target.id === "misPrintBtn") { window.print(); }
   else if (target.id === "misExportBtn") {
-    const columns = ["financialYear", "division", "state", "material", "aprNumber", "batchNo", "period", "genMkfedPvt", "pricingHeading", "value"];
+    const columns = ["financialYear", "division", "state", "material", "aprNumber", "batchNo", "period", "category", "pricingHeading", "value"];
     const csv = [columns.join(","), ...getMisFilteredDisplayRecords().map((row) => columns.map((key) => `"${String(row[key] || "").replace(/"/g, '""')}"`).join(","))].join("\n");
     const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); link.download = "MIS-Report.csv"; link.click(); URL.revokeObjectURL(link.href);
   } else if (target.id === "misCompExportBtn") {
@@ -2892,7 +2895,7 @@ masterDataPanel.addEventListener("change", (event) => {
   } else if (event.target.classList.contains("pricing-unit-rate-select")) {
     updatePricingDataRow(event.target.dataset.rowId, "unitRate", event.target.value);
   } else if (event.target.classList.contains("pricing-gen-mkfed-pvt-select")) {
-    updatePricingDataRow(event.target.dataset.rowId, "genMkfedPvt", event.target.value);
+    updatePricingDataRow(event.target.dataset.rowId, "category", event.target.value);
   } else if (event.target.classList.contains("saved-division-select")) {
     updateSavedPricingRow(event.target.dataset.rowId, "division", event.target.value);
   } else if (event.target.classList.contains("saved-state-select")) {
@@ -2904,7 +2907,7 @@ masterDataPanel.addEventListener("change", (event) => {
   } else if (event.target.classList.contains("saved-heading-select")) {
     updateSavedPricingRow(event.target.dataset.rowId, "pricingHeadingId", event.target.value);
   } else if (event.target.classList.contains("saved-gen-mkfed-pvt-select")) {
-    updateSavedPricingRow(event.target.dataset.rowId, "genMkfedPvt", event.target.value);
+    updateSavedPricingRow(event.target.dataset.rowId, "category", event.target.value);
   }
 });
 
