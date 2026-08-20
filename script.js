@@ -83,6 +83,9 @@ let printCircularSelectedApr = "";
 let printCircularCcText = "";
 let printCircularSignatoryText = "Dy. General Manager (Fin.)\nAuthorized Signatory";
 let printCircularTermsHtml = "";
+let printCircularIntroText = "The following pricing and sales terms have been approved for details mentioned above.";
+let printCircularDateOfCircular = "";
+let printCircularEffectiveFrom = "";
 let databaseSyncQueue = Promise.resolve();
 let databaseAvailable = false;
 
@@ -142,7 +145,8 @@ const MIS_FILTERS = [
   { key: "state", label: "State" }, { key: "material", label: "Material Description" },
   { key: "aprNumber", label: "APR No." }, { key: "batchNo", label: "Batch no." }, { key: "period", label: "Period" },
   { key: "category", label: "CATEGORY" }, { key: "pricingHeading", label: "Pricing Heading" },
-  { key: "remarks", label: "Remarks" }, { key: "completedAt", label: "Completed On" },
+  { key: "approvingAuthority", label: "Approving Authority" }, { key: "dateOfApproval", label: "Date of Approval" },
+  { key: "refNoteOfApproval", label: "Ref. Note of Approval" }, { key: "remarks", label: "Remarks" }, { key: "completedAt", label: "Completed On" },
 ];
 
 function escapeHtml(value) {
@@ -598,6 +602,9 @@ function buildEntryRowHtml(row, index) {
       <td><select class="pricing-heading-select" data-row-id="${row.id}"><option value="">Select pricing heading</option>${pricingHeadingEntries.map((e) => `<option value="${e.id}" ${e.id === row.pricingHeadingId ? "selected" : ""}>${escapeHtml(e.description)}</option>`).join("")}</select></td>
       <td><textarea class="pricing-value-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter value, slabs, conditions, formulas, or text">${escapeHtml(row.value)}</textarea></td>
       <td><textarea class="pricing-remarks-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter remarks">${escapeHtml(row.remarks)}</textarea></td>
+      <td><input type="text" class="pricing-approving-authority-input" data-row-id="${row.id}" value="${escapeHtml(row.approvingAuthority || "")}" placeholder="Enter approving authority" /></td>
+      <td><input type="date" class="pricing-date-of-approval-input" data-row-id="${row.id}" value="${escapeHtml(row.dateOfApproval || "")}" /></td>
+      <td><textarea class="pricing-ref-note-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter ref. note of approval">${escapeHtml(row.refNoteOfApproval)}</textarea></td>
       <td class="entry-actions"><button type="button" class="delete-btn" data-action="delete-pricing-data-row" data-id="${row.id}">Delete</button></td>
     </tr>
   `;
@@ -619,6 +626,9 @@ const PRICING_DISPLAY_COLS = [
   { key: "pricingHeading",label: "Pricing Heading",      type: "text" },
   { key: "value",         label: "Value / Amount / Text", type: "text" },
   { key: "remarks",       label: "Remarks",              type: "text" },
+  { key: "approvingAuthority", label: "Approving Authority", type: "text" },
+  { key: "dateOfApproval", label: "Date of Approval", type: "text" },
+  { key: "refNoteOfApproval", label: "Ref. Note of Approval", type: "text" },
 ];
 
 const SAVED_COLS = PRICING_DISPLAY_COLS;
@@ -638,6 +648,9 @@ function getCommonRowDisplayValues(row, index) {
     pricingHeading: pricingHeadingEntries.find((e) => e.id === row.pricingHeadingId)?.description || "",
     value:         row.value || "",
     remarks:       row.remarks || "",
+    approvingAuthority: row.approvingAuthority || "",
+    dateOfApproval: row.dateOfApproval || "",
+    refNoteOfApproval: row.refNoteOfApproval || "",
   };
 }
 
@@ -958,6 +971,9 @@ function buildSavedRowHtml(row, index) {
         <td><select class="saved-heading-select" data-row-id="${row.id}"><option value="">Select pricing heading</option>${pricingHeadingEntries.map((e) => `<option value="${e.id}" ${e.id === row.pricingHeadingId ? "selected" : ""}>${escapeHtml(e.description)}</option>`).join("")}</select></td>
         <td><textarea class="saved-value-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter value, slabs, conditions, formulas, or text">${escapeHtml(row.value)}</textarea></td>
         <td><textarea class="saved-remarks-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter remarks">${escapeHtml(row.remarks)}</textarea></td>
+        <td><input type="text" class="saved-approving-authority-input" data-row-id="${row.id}" value="${escapeHtml(row.approvingAuthority || "")}" placeholder="Enter approving authority" /></td>
+        <td><input type="date" class="saved-date-of-approval-input" data-row-id="${row.id}" value="${escapeHtml(row.dateOfApproval || "")}" /></td>
+        <td><textarea class="saved-ref-note-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter ref. note of approval">${escapeHtml(row.refNoteOfApproval)}</textarea></td>
         <td class="entry-actions">
           <button type="button" class="add-row-btn" data-action="save-saved-row" data-id="${row.id}">Save</button>
           <button type="button" class="secondary-btn" data-action="cancel-saved-edit">Cancel</button>
@@ -981,6 +997,9 @@ function buildSavedRowHtml(row, index) {
       <td>${escapeHtml(pricingHeadingEntries.find((e) => e.id === row.pricingHeadingId)?.description || "")}</td>
       <td>${formatMultilineText(row.value)}</td>
       <td>${escapeHtml(row.remarks || "")}</td>
+      <td>${escapeHtml(row.approvingAuthority || "")}</td>
+      <td>${escapeHtml(row.dateOfApproval || "")}</td>
+      <td>${escapeHtml(row.refNoteOfApproval || "")}</td>
       <td class="entry-actions"></td>
     </tr>
   `;
@@ -1006,6 +1025,9 @@ function renderPricingDataTable() {
       <th>Pricing Heading</th>
       <th>Value / Amount / Text</th>
       <th>Remarks</th>
+      <th>Approving Authority</th>
+      <th>Date of Approval</th>
+      <th>Ref. Note of Approval</th>
       <th>Actions</th>
     </tr>`;
   masterDataPanel.innerHTML = `
@@ -1028,7 +1050,7 @@ function renderPricingDataTable() {
           <tbody>
             ${pricingDataRows.length
               ? pricingDataRows.map((row, index) => buildEntryRowHtml(row, index)).join("")
-              : '<tr><td colspan="12" class="empty-state">No pricing rows yet. Click Add Row to begin.</td></tr>'}
+              : '<tr><td colspan="16" class="empty-state">No pricing rows yet. Click Add Row to begin.</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -1066,7 +1088,7 @@ function renderSavedPricingRecordsPanel() {
           <tbody>
             ${filteredRecords.length
               ? filteredRecords.map((row, index) => buildSavedRowHtml(row, index)).join("")
-              : `<tr><td colspan="15" class="empty-state">${savedPricingRecords.length ? "No records match the current filters." : "No saved records yet. Create a record in Pricing Data to see it here."}</td></tr>`}
+               : `<tr><td colspan="17" class="empty-state">${savedPricingRecords.length ? "No records match the current filters." : "No saved records yet. Create a record in Pricing Data to see it here."}</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -1087,6 +1109,9 @@ function createPricingDataRow() {
     financialYearId: "",
     period: "",
     category: "",
+    approvingAuthority: "",
+    dateOfApproval: "",
+    refNoteOfApproval: "",
     unitRate: "",
     materialId: "",
     pricingHeadingId: "",
@@ -1259,8 +1284,7 @@ function handleSavePricingDataRows() {
     return;
   }
 
-  aprCounter += 1;
-  const batchAprNumber = `APR-${aprCounter}`;
+  const batchAprNumber = generateAprNumber(rowsToSave[0].financialYearId);
   savedPricingRecords = [
     ...savedPricingRecords,
     ...rowsToSave.map((row, index) => ({ ...row, aprNumber: batchAprNumber, slNo: String(index + 1) })),
@@ -1369,7 +1393,7 @@ function renderReportsPanel() {
   const adminBtnLabel = isAdminAuthenticated ? "Admin Mode: ON" : "Admin Login";
   const filteredReports = getFilteredReportRecords();
   const hasActiveFilters = Object.values(reportRecordFilters).some((f) => f?.active);
-  const colCount = isAdminAuthenticated ? 17 : 16;
+  const colCount = isAdminAuthenticated ? 19 : 18;
 
   const headerCells = REPORT_COLS.map((col) => {
     const isActive = reportRecordFilters[col.key]?.active;
@@ -1417,6 +1441,9 @@ function renderReportsPanel() {
                       <td>${escapeHtml(display.pricingHeading)}</td>
                       <td>${formatMultilineText(display.value)}</td>
                       <td>${escapeHtml(display.remarks)}</td>
+                      <td>${escapeHtml(display.approvingAuthority)}</td>
+                      <td>${escapeHtml(display.dateOfApproval)}</td>
+                      <td>${escapeHtml(display.refNoteOfApproval)}</td>
                       <td>${escapeHtml(display.completedAt)}</td>
                       <td>${escapeHtml(display.status)}</td>
                       <td>${escapeHtml(display.completedId)}</td>
@@ -1452,6 +1479,9 @@ function renderMisPanel() {
     { key: "batchNo",        label: "Batch No." },
     { key: "value",          label: "Value / Amount / Text" },
     { key: "remarks",        label: "Remarks" },
+    { key: "approvingAuthority", label: "Approving Authority" },
+    { key: "dateOfApproval", label: "Date of Approval" },
+    { key: "refNoteOfApproval", label: "Ref. Note of Approval" },
     { key: "completedAt",    label: "Completed On" },
     { key: "completedId",    label: "Completed ID" },
   ];
@@ -1552,6 +1582,90 @@ function formatDateOnly(dateString) {
   return parts[0].trim();
 }
 
+function toDateInputValue(dateString) {
+  if (!dateString) return "";
+  const parts = dateString.split(",");
+  const datePart = parts[0].trim();
+  const match = datePart.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (match) {
+    const [, a, b, year] = match;
+    const numA = parseInt(a, 10);
+    const numB = parseInt(b, 10);
+    let month, day;
+    if (numA > 12) {
+      day = String(numA).padStart(2, '0');
+      month = String(numB).padStart(2, '0');
+    } else if (numB > 12) {
+      month = String(numA).padStart(2, '0');
+      day = String(numB).padStart(2, '0');
+    } else {
+      month = String(numA).padStart(2, '0');
+      day = String(numB).padStart(2, '0');
+    }
+    return `${year}-${month}-${day}`;
+  }
+  const date = new Date(datePart);
+  if (!isNaN(date.getTime())) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  }
+  return datePart;
+}
+
+function formatDateDisplay(dateString) {
+  if (!dateString) return "";
+  const parts = dateString.split(",");
+  const datePart = parts[0].trim();
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  
+  // Handle YYYY-MM-DD (HTML date input format)
+  const isoMatch = datePart.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    return `${String(day).padStart(2, '0')}-${months[parseInt(month, 10) - 1]}-${year}`;
+  }
+  
+  // Handle MM/DD/YYYY or DD/MM/YYYY
+  const match = datePart.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (match) {
+    const [, a, b, year] = match;
+    const numA = parseInt(a, 10);
+    const numB = parseInt(b, 10);
+    let month, day;
+    if (numA > 12) {
+      day = String(numA).padStart(2, '0');
+      month = months[numB - 1];
+    } else if (numB > 12) {
+      month = months[numA - 1];
+      day = String(numB).padStart(2, '0');
+    } else {
+      month = months[numA - 1];
+      day = String(numB).padStart(2, '0');
+    }
+    return `${day}-${month}-${year}`;
+  }
+  
+  const date = new Date(datePart);
+  if (!isNaN(date.getTime())) {
+    return `${String(date.getDate()).padStart(2, '0')}-${months[date.getMonth()]}-${date.getFullYear()}`;
+  }
+  return datePart;
+}
+
+function generateAprNumber(financialYearId) {
+  const financialYear = financialYearEntries.find((e) => e.id === financialYearId)?.year || "";
+  const startYearMatch = financialYear.match(/^(\d{4})/);
+  const startYear = startYearMatch ? startYearMatch[1] : "";
+  const prefix = startYear ? `APR-${startYear}-` : `APR-`;
+  const existingRecords = [...savedPricingRecords, ...completedPricingRecords];
+  const maxSeq = existingRecords.reduce((max, r) => {
+    if (!r.aprNumber || !r.aprNumber.startsWith(prefix)) return max;
+    const suffix = r.aprNumber.slice(prefix.length);
+    const num = parseInt(suffix, 10);
+    return isNaN(num) ? max : Math.max(max, num);
+  }, 0);
+  return `${prefix}${maxSeq + 1}`;
+}
+
 function renderPrintCircularPanel() {
   const aprNumbers = [...new Set(completedPricingRecords.map((r) => r.aprNumber).filter(Boolean))];
   aprNumbers.sort((a, b) => {
@@ -1582,7 +1696,19 @@ function renderPrintCircularPanel() {
     const first = records[0];
     const uniqueMaterials = [...new Set(selectedAprRecords.map((r) => r.materialId).filter(Boolean))].map((mid) => masterDataEntries.find((m) => m.id === mid)?.description).filter(Boolean);
     const uniqueBatchNos = [...new Set(selectedAprRecords.map((r) => r.batchNo).filter(Boolean))];
-    const circularDate = formatDateOnly(selectedAprRecords[0].completedAt || "");
+    const uniqueCategories = [...new Set(selectedAprRecords.map((r) => r.category).filter(Boolean))].join(", ") || "";
+    const dateOfApprovalRaw = selectedAprRecords[0].completedAt || "";
+    const dateOfApproval = formatDateDisplay(dateOfApprovalRaw);
+    const approvingAuthority = [...new Set(selectedAprRecords.map((r) => r.approvingAuthority).filter(Boolean))].join(", ") || "";
+    const refNoteOfApproval = [...new Set(selectedAprRecords.map((r) => r.refNoteOfApproval).filter(Boolean))].join(", ") || "";
+
+    if (!printCircularDateOfCircular) {
+      printCircularDateOfCircular = toDateInputValue(dateOfApprovalRaw);
+    }
+    if (!printCircularEffectiveFrom) {
+      printCircularEffectiveFrom = printCircularDateOfCircular;
+    }
+
     circularHeader = `
       <table class="circular-header-table">
         <tr>
@@ -1590,24 +1716,32 @@ function renderPrintCircularPanel() {
           <td class="circular-header-value">${escapeHtml(first.aprNumber || "")}</td>
           <td class="circular-header-label">Division :-</td>
           <td class="circular-header-value">${escapeHtml(first.division || "")}</td>
-          <td class="circular-header-label">Material Description :-</td>
-          <td class="circular-header-value">${escapeHtml(uniqueMaterials.join(", ") || "")}</td>
+          <td class="circular-header-label">Approving Authority :-</td>
+          <td class="circular-header-value">${escapeHtml(approvingAuthority)}</td>
         </tr>
         <tr>
-          <td class="circular-header-label">Circular Date :-</td>
-          <td class="circular-header-value">${escapeHtml(circularDate)}</td>
+          <td class="circular-header-label">Date of Circular :-</td>
+          <td class="circular-header-value"><input type="date" class="circular-date-input" id="circularDateOfCircular" value="${escapeHtml(printCircularDateOfCircular || "")}" /></td>
           <td class="circular-header-label">State :-</td>
           <td class="circular-header-value">${escapeHtml(first.state || "")}</td>
-          <td class="circular-header-label">Batch No. :-</td>
-          <td class="circular-header-value">${escapeHtml(uniqueBatchNos.join(", ") || "")}</td>
+          <td class="circular-header-label">Period :-</td>
+          <td class="circular-header-value">${escapeHtml(first.period || "")}</td>
         </tr>
         <tr>
           <td class="circular-header-label">Effective From :-</td>
-          <td class="circular-header-value">${escapeHtml(circularDate)}</td>
+          <td class="circular-header-value"><input type="date" class="circular-date-input" id="circularEffectiveFrom" value="${escapeHtml(printCircularEffectiveFrom || "")}" /></td>
+          <td class="circular-header-label">Material Description :-</td>
+          <td class="circular-header-value">${escapeHtml(uniqueMaterials.join(", ") || "")}</td>
+          <td class="circular-header-label">Ref. Note of Approval :-</td>
+          <td class="circular-header-value">${escapeHtml(refNoteOfApproval)}</td>
+        </tr>
+        <tr>
           <td class="circular-header-label">Financial Year :-</td>
           <td class="circular-header-value">${escapeHtml(first.financialYear || "")}</td>
-          <td class="circular-header-label">Period :-</td>
-          <td class="circular-header-value">${escapeHtml(first.period || "")}</td>
+          <td class="circular-header-label">Batch No. :-</td>
+          <td class="circular-header-value">${escapeHtml(uniqueBatchNos.join(", ") || "")}</td>
+          <td class="circular-header-label">Category :-</td>
+          <td class="circular-header-value">${escapeHtml(uniqueCategories)}</td>
         </tr>
       </table>`;
   }
@@ -1641,7 +1775,7 @@ function renderPrintCircularPanel() {
       ${noAprMessage}
       ${circularHeader}
       ${selectedAprRecords.length ? `
-      <div class="circular-intro">The following pricing and sales terms have been approved for details mentioned above.</div>
+      <div class="circular-intro-editor" contenteditable="true">${escapeHtml(printCircularIntroText || "")}</div>
       <div class="circular-section-title">Pricing Details</div>
       <div class="table-wrapper saved-table-wrapper">
         <table class="master-data-table pricing-data-table">
@@ -1714,9 +1848,36 @@ function renderPrintCircularPanel() {
         } else {
           document.execCommand("insertText", false, text);
         }
-        } else {
-          document.execCommand("insertHTML", false, text.replace(/\n/g, "<br>"));
-        }
+      } else {
+        document.execCommand("insertHTML", false, text.replace(/\n/g, "<br>"));
+      }
+    });
+  }
+  const introEditor = masterDataPanel.querySelector(".circular-intro-editor");
+  if (introEditor) {
+    introEditor.style.height = "auto";
+    introEditor.style.height = introEditor.scrollHeight + "px";
+    introEditor.addEventListener("input", () => {
+      printCircularIntroText = introEditor.innerText || introEditor.textContent || "";
+    });
+  }
+  const dateOfCircularInput = masterDataPanel.querySelector("#circularDateOfCircular");
+  if (dateOfCircularInput) {
+    dateOfCircularInput.addEventListener("change", () => {
+      printCircularDateOfCircular = dateOfCircularInput.value || "";
+      const effectiveFromInput = masterDataPanel.querySelector("#circularEffectiveFrom");
+      if (effectiveFromInput && !effectiveFromInput._userChanged) {
+        printCircularEffectiveFrom = printCircularDateOfCircular;
+        effectiveFromInput.value = printCircularEffectiveFrom;
+      }
+    });
+  }
+  const effectiveFromInput = masterDataPanel.querySelector("#circularEffectiveFrom");
+  if (effectiveFromInput) {
+    effectiveFromInput._userChanged = false;
+    effectiveFromInput.addEventListener("change", () => {
+      effectiveFromInput._userChanged = true;
+      printCircularEffectiveFrom = effectiveFromInput.value || "";
     });
   }
 }
@@ -2238,6 +2399,9 @@ printCircularButton.addEventListener("click", () => {
   printCircularCcText = "";
   printCircularSignatoryText = "Dy. General Manager (Fin.)\nAuthorized Signatory";
   printCircularTermsHtml = "";
+  printCircularIntroText = "The following pricing and sales terms have been approved for details mentioned above.";
+  printCircularDateOfCircular = "";
+  printCircularEffectiveFrom = "";
   renderPrintCircularPanel();
 });
 
@@ -2316,7 +2480,7 @@ masterDataPanel.addEventListener("click", (event) => {
     if (document.fullscreenElement) document.exitFullscreen?.(); else dashboard?.requestFullscreen?.();
   } else if (target.id === "misPrintBtn") { window.print(); }
   else if (target.id === "misExportBtn") {
-    const columns = ["financialYear", "division", "state", "material", "aprNumber", "batchNo", "period", "category", "pricingHeading", "value"];
+    const columns = ["financialYear", "division", "state", "material", "aprNumber", "batchNo", "period", "category", "pricingHeading", "value", "approvingAuthority", "dateOfApproval", "refNoteOfApproval"];
     const csv = [columns.join(","), ...getMisFilteredDisplayRecords().map((row) => columns.map((key) => `"${String(row[key] || "").replace(/"/g, '""')}"`).join(","))].join("\n");
     const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); link.download = "MIS-Report.csv"; link.click(); URL.revokeObjectURL(link.href);
   } else if (target.id === "misCompExportBtn") {
@@ -2480,18 +2644,28 @@ masterDataPanel.addEventListener("click", (event) => {
     const first = records[0];
     const uniqueMaterials = [...new Set(selected.map((r) => r.materialId).filter(Boolean))].map((mid) => masterDataEntries.find((m) => m.id === mid)?.description).filter(Boolean);
     const uniqueBatchNos = [...new Set(selected.map((r) => r.batchNo).filter(Boolean))];
-    const circularDate = formatDateOnly(selected[0].completedAt || "");
+    const uniqueCategories = [...new Set(selected.map((r) => r.category).filter(Boolean))].join(", ") || "";
+    const dateOfApprovalRaw = selected[0].completedAt || "";
+    const dateOfApproval = formatDateDisplay(dateOfApprovalRaw);
+    const approvingAuthority = [...new Set(selected.map((r) => r.approvingAuthority).filter(Boolean))].join(", ") || "";
+    const refNoteOfApproval = [...new Set(selected.map((r) => r.refNoteOfApproval).filter(Boolean))].join(", ") || "";
+
+    const dateOfCircular = formatDateDisplay(printCircularDateOfCircular || dateOfApprovalRaw);
+    const effectiveFrom = formatDateDisplay(printCircularEffectiveFrom || printCircularDateOfCircular || dateOfApprovalRaw);
 
     const headerInfo = {
       aprNumber: first.aprNumber || "",
-      circularDate: circularDate,
-      effectiveFrom: circularDate,
+      dateOfCircular: dateOfCircular,
+      effectiveFrom: effectiveFrom,
+      approvingAuthority: approvingAuthority,
       division: first.division || "",
       state: first.state || "",
       financialYear: first.financialYear || "",
+      refNoteOfApproval: refNoteOfApproval,
       period: first.period || "",
       materials: uniqueMaterials.join(", ") || "",
-      batchNos: uniqueBatchNos.join(", ") || ""
+      batchNos: uniqueBatchNos.join(", ") || "",
+      category: uniqueCategories
     };
 
     const rows = selected.map((row, i) => {
@@ -2530,7 +2704,7 @@ masterDataPanel.addEventListener("click", (event) => {
       background: white;
     }
     .circular-wrap {
-      max-width: 180mm;
+      max-width: 178mm;
       margin: 0 auto;
     }
     .circular-title {
@@ -2555,32 +2729,43 @@ masterDataPanel.addEventListener("click", (event) => {
       table-layout: fixed;
     }
     .circular-header-table td {
-      padding: 5px 7px;
+      padding: 6px 8px;
       border: 1px solid #dbe5f0;
       vertical-align: top;
       word-wrap: break-word;
       overflow-wrap: anywhere;
       word-break: break-word;
       white-space: normal;
-      line-height: 1.35;
+      line-height: 1.4;
     }
     .circular-header-label {
-      width: 15%;
+      width: 16%;
       font-weight: 700;
       color: #003366;
       white-space: normal;
       font-size: 8pt;
-      text-transform: uppercase;
-      letter-spacing: 0.03em;
+      text-transform: none;
+      letter-spacing: 0.02em;
     }
     .circular-header-value {
-      width: 35%;
+      width: 34%;
       color: #233142;
-      font-weight: 600;
+      font-weight: 400;
       word-break: break-word;
       overflow-wrap: anywhere;
       white-space: normal;
       font-size: 9pt;
+    }
+    .circular-date-input {
+      width: 100%;
+      padding: 3px 6px;
+      border: 1px solid #cbd5e1;
+      border-radius: 3px;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 9pt;
+      color: #233142;
+      background: #fff;
+      box-sizing: border-box;
     }
     .circular-section-title {
       font-size: 12pt;
@@ -2643,6 +2828,10 @@ masterDataPanel.addEventListener("click", (event) => {
       color: #233142;
       margin: 12px 0 8px;
       text-align: left;
+      word-wrap: break-word;
+      overflow-wrap: anywhere;
+      white-space: normal;
+      line-height: 1.35;
     }
     .circular-gst {
       font-size: 10pt;
@@ -2762,6 +2951,8 @@ masterDataPanel.addEventListener("click", (event) => {
       body { margin: 0; }
       .circular-wrap { max-width: none; margin: 0; }
       .circular-table tr { page-break-inside: avoid; }
+      .circular-table thead { display: table-header-group; }
+      .circular-footer { page-break-inside: avoid; }
       .circular-signatories { page-break-inside: avoid; }
       .circular-cc { page-break-inside: avoid; }
     }
@@ -2771,59 +2962,69 @@ masterDataPanel.addEventListener("click", (event) => {
   <div class="circular-wrap">
      <div class="circular-title">Pricing Circular</div>
      <div class="circular-details">
-       <table class="circular-header-table">
-         <tr>
-           <td class="circular-header-label">APR No. :-</td>
-           <td class="circular-header-value">${escapeHtml(headerInfo.aprNumber || "")}</td>
-           <td class="circular-header-label">Division :-</td>
-           <td class="circular-header-value">${escapeHtml(headerInfo.division || "")}</td>
-           <td class="circular-header-label">Material Description :-</td>
-           <td class="circular-header-value">${escapeHtml(headerInfo.materials || "")}</td>
-         </tr>
-         <tr>
-           <td class="circular-header-label">Circular Date :-</td>
-           <td class="circular-header-value">${escapeHtml(headerInfo.circularDate || "")}</td>
-           <td class="circular-header-label">State :-</td>
-           <td class="circular-header-value">${escapeHtml(headerInfo.state || "")}</td>
-           <td class="circular-header-label">Batch No. :-</td>
-           <td class="circular-header-value">${escapeHtml(headerInfo.batchNos || "")}</td>
-         </tr>
-         <tr>
-           <td class="circular-header-label">Effective From :-</td>
-           <td class="circular-header-value">${escapeHtml(headerInfo.effectiveFrom || "")}</td>
-           <td class="circular-header-label">Financial Year :-</td>
-           <td class="circular-header-value">${escapeHtml(headerInfo.financialYear || "")}</td>
-           <td class="circular-header-label">Period :-</td>
-           <td class="circular-header-value">${escapeHtml(headerInfo.period || "")}</td>
-         </tr>
-       </table>
+         <table class="circular-header-table">
+           <tr>
+             <td class="circular-header-label">APR No. :-</td>
+             <td class="circular-header-value">${escapeHtml(headerInfo.aprNumber || "")}</td>
+             <td class="circular-header-label">Division :-</td>
+             <td class="circular-header-value">${escapeHtml(headerInfo.division || "")}</td>
+             <td class="circular-header-label">Approving Authority :-</td>
+             <td class="circular-header-value">${escapeHtml(headerInfo.approvingAuthority || "")}</td>
+           </tr>
+           <tr>
+             <td class="circular-header-label">Date of Circular :-</td>
+             <td class="circular-header-value">${escapeHtml(headerInfo.dateOfCircular || "")}</td>
+             <td class="circular-header-label">State :-</td>
+             <td class="circular-header-value">${escapeHtml(headerInfo.state || "")}</td>
+             <td class="circular-header-label">Period :-</td>
+             <td class="circular-header-value">${escapeHtml(headerInfo.period || "")}</td>
+           </tr>
+           <tr>
+             <td class="circular-header-label">Effective From :-</td>
+             <td class="circular-header-value">${escapeHtml(headerInfo.effectiveFrom || "")}</td>
+             <td class="circular-header-label">Material Description :-</td>
+             <td class="circular-header-value">${escapeHtml(headerInfo.materials || "")}</td>
+             <td class="circular-header-label">Ref. Note of Approval :-</td>
+             <td class="circular-header-value">${escapeHtml(headerInfo.refNoteOfApproval || "")}</td>
+           </tr>
+           <tr>
+             <td class="circular-header-label">Financial Year :-</td>
+             <td class="circular-header-value">${escapeHtml(headerInfo.financialYear || "")}</td>
+             <td class="circular-header-label">Batch No. :-</td>
+             <td class="circular-header-value">${escapeHtml(headerInfo.batchNos || "")}</td>
+             <td class="circular-header-label">Category :-</td>
+             <td class="circular-header-value">${escapeHtml(headerInfo.category || "")}</td>
+           </tr>
+         </table>
      </div>
      <div class="circular-section-title">Pricing Details</div>
-     <div class="circular-intro">The following pricing and sales terms have been approved for details mentioned above.</div>
-     <table class="circular-table">
-       <thead>
-         <tr>
-           <th class="col-slno">Sl. No.</th>
-           <th class="col-heading">Pricing Heading</th>
-           <th class="col-value">Value / Amount / Text</th>
-           <th class="col-remarks">Remarks</th>
-         </tr>
-       </thead>
-       <tbody>${rows}</tbody>
-     </table>
-         <div class="circular-gst">GST will be charged extra as applicable.</div>
-         <div class="circular-terms">
-           <div class="circular-terms-label">Other terms and conditions</div>
-            <div class="circular-terms-box">${printCircularTermsHtml || ""}</div>
-         </div>
-         <div style="text-align: right; margin-top: 24px; page-break-inside: avoid;">
-           <div class="circular-signatory-box">${escapeHtml(printCircularSignatoryText || "").replace(/\n/g, "<br>")}</div>
-         </div>
-       <div style="text-align: left; margin-top: 10px;">To State Incharge (Mkting) / State Finance Incharge</div>
-       <div class="circular-cc">
-         <div class="circular-cc-label">CC To</div>
-         <div class="circular-cc-box">${escapeHtml(printCircularCcText || "").replace(/\n/g, "<br>")}</div>
-       </div>
+      <div class="circular-intro">${escapeHtml(printCircularIntroText || "")}</div>
+      <table class="circular-table">
+        <thead>
+          <tr>
+            <th class="col-slno">Sl. No.</th>
+            <th class="col-heading">Pricing Heading</th>
+            <th class="col-value">Value / Amount / Text</th>
+            <th class="col-remarks">Remarks</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="circular-footer">
+          <div class="circular-gst">GST will be charged extra as applicable.</div>
+          <div class="circular-terms">
+            <div class="circular-terms-label">Other terms and conditions</div>
+             <div class="circular-terms-box">${printCircularTermsHtml || ""}</div>
+          </div>
+          <div style="text-align: right; margin-top: 24px;">
+            <div class="circular-signatory-box">${escapeHtml(printCircularSignatoryText || "").replace(/\n/g, "<br>")}</div>
+          </div>
+        <div style="text-align: left; margin-top: 10px;">To State Incharge (Mkting) / State Finance Incharge</div>
+        <div class="circular-cc">
+          <div class="circular-cc-label">CC To</div>
+          <div class="circular-cc-box">${escapeHtml(printCircularCcText || "").replace(/\n/g, "<br>")}</div>
+        </div>
+      </div>
    </div>
   <script>
     window.onload = function() {
@@ -2856,6 +3057,8 @@ masterDataPanel.addEventListener("change", (event) => {
     renderSavedPricingRecordsPanel();
   } else if (event.target.id === "printCircularAprSelect") {
     printCircularSelectedApr = event.target.value || "";
+    printCircularDateOfCircular = "";
+    printCircularEffectiveFrom = "";
     renderPrintCircularPanel();
   } else if (event.target.classList.contains("circular-cc-textarea")) {
     printCircularCcText = event.target.value || "";
@@ -2896,6 +3099,12 @@ masterDataPanel.addEventListener("change", (event) => {
     updatePricingDataRow(event.target.dataset.rowId, "unitRate", event.target.value);
   } else if (event.target.classList.contains("pricing-gen-mkfed-pvt-select")) {
     updatePricingDataRow(event.target.dataset.rowId, "category", event.target.value);
+  } else if (event.target.classList.contains("pricing-approving-authority-input")) {
+    updatePricingDataRow(event.target.dataset.rowId, "approvingAuthority", event.target.value);
+  } else if (event.target.classList.contains("pricing-date-of-approval-input")) {
+    updatePricingDataRow(event.target.dataset.rowId, "dateOfApproval", event.target.value);
+  } else if (event.target.classList.contains("pricing-ref-note-input")) {
+    updatePricingDataRow(event.target.dataset.rowId, "refNoteOfApproval", event.target.value);
   } else if (event.target.classList.contains("saved-division-select")) {
     updateSavedPricingRow(event.target.dataset.rowId, "division", event.target.value);
   } else if (event.target.classList.contains("saved-state-select")) {
@@ -2926,6 +3135,12 @@ masterDataPanel.addEventListener("input", (event) => {
     updatePricingDataRow(event.target.dataset.rowId, "value", event.target.value);
   } else if (event.target.classList.contains("pricing-remarks-input")) {
     updatePricingDataRow(event.target.dataset.rowId, "remarks", event.target.value);
+  } else if (event.target.classList.contains("pricing-approving-authority-input")) {
+    updatePricingDataRow(event.target.dataset.rowId, "approvingAuthority", event.target.value);
+  } else if (event.target.classList.contains("pricing-date-of-approval-input")) {
+    updatePricingDataRow(event.target.dataset.rowId, "dateOfApproval", event.target.value);
+  } else if (event.target.classList.contains("pricing-ref-note-input")) {
+    updatePricingDataRow(event.target.dataset.rowId, "refNoteOfApproval", event.target.value);
   } else if (event.target.classList.contains("saved-period-input")) {
     updateSavedPricingRow(event.target.dataset.rowId, "period", event.target.value);
   } else if (event.target.classList.contains("saved-unit-rate-input")) {
@@ -2942,6 +3157,12 @@ masterDataPanel.addEventListener("input", (event) => {
     updateSavedPricingRow(event.target.dataset.rowId, "value", event.target.value);
   } else if (event.target.classList.contains("saved-remarks-input")) {
     updateSavedPricingRow(event.target.dataset.rowId, "remarks", event.target.value);
+  } else if (event.target.classList.contains("saved-approving-authority-input")) {
+    updateSavedPricingRow(event.target.dataset.rowId, "approvingAuthority", event.target.value);
+  } else if (event.target.classList.contains("saved-date-of-approval-input")) {
+    updateSavedPricingRow(event.target.dataset.rowId, "dateOfApproval", event.target.value);
+  } else if (event.target.classList.contains("saved-ref-note-input")) {
+    updateSavedPricingRow(event.target.dataset.rowId, "refNoteOfApproval", event.target.value);
   }
 });
 
