@@ -86,6 +86,9 @@ let printCircularTermsHtml = "";
 let printCircularIntroText = "The following pricing and sales terms have been approved for details mentioned above.";
 let printCircularDateOfCircular = "";
 let printCircularEffectiveFrom = "";
+let reportDrillDownExpanded = new Set();
+let reportDrillDownZoom = 100;
+let reportDrillDownPage = 1;
 let databaseSyncQueue = Promise.resolve();
 let databaseAvailable = false;
 
@@ -868,6 +871,151 @@ function getFilteredReportRecords() {
   });
 }
 
+function buildReportDrillDownTree(records) {
+  const tree = [];
+  const fyMap = new Map();
+
+  for (let i = 0; i < records.length; i++) {
+    const row = records[i];
+    const display = getReportRowDisplayValues(row, i);
+    const fy = display.financialYear || "Unknown";
+    const div = display.division || "Unknown";
+    const state = display.state || "Unknown";
+    const mat = display.material || "Unknown";
+    const apr = display.aprNumber || "Unknown";
+
+    let fyNode = fyMap.get(fy);
+    if (!fyNode) {
+      fyNode = { id: `fy:${fy}`, label: fy, count: 0, children: [], records: [], aprNumbers: new Set(), divMap: new Map() };
+      fyMap.set(fy, fyNode);
+      tree.push(fyNode);
+    }
+
+    let divNode = fyNode.divMap.get(div);
+    if (!divNode) {
+      divNode = { id: `fy:${fy}:div:${div}`, label: div, count: 0, children: [], records: [], aprNumbers: new Set(), stateMap: new Map() };
+      fyNode.divMap.set(div, divNode);
+      fyNode.children.push(divNode);
+    }
+
+    let stateNode = divNode.stateMap.get(state);
+    if (!stateNode) {
+      stateNode = { id: `fy:${fy}:div:${div}:state:${state}`, label: state, count: 0, children: [], records: [], aprNumbers: new Set(), matMap: new Map() };
+      divNode.stateMap.set(state, stateNode);
+      divNode.children.push(stateNode);
+    }
+
+    let matNode = stateNode.matMap.get(mat);
+    if (!matNode) {
+      matNode = { id: `fy:${fy}:div:${div}:state:${state}:mat:${mat}`, label: mat, count: 0, children: [], records: [], aprNumbers: new Set() };
+      stateNode.matMap.set(mat, matNode);
+      stateNode.children.push(matNode);
+    }
+
+    matNode.records.push(row);
+    matNode.aprNumbers.add(apr);
+    stateNode.aprNumbers.add(apr);
+    divNode.aprNumbers.add(apr);
+    fyNode.aprNumbers.add(apr);
+  }
+
+  function setCounts(node) {
+    node.count = node.aprNumbers.size;
+    for (const child of node.children) {
+      setCounts(child);
+    }
+  }
+
+  for (const fyNode of tree) {
+    setCounts(fyNode);
+  }
+
+  return tree;
+}
+
+function renderReportDrillDownNode(node, level = 0) {
+  const hasChildren = node.children && node.children.length > 0;
+  const isExpanded = reportDrillDownExpanded.has(node.id);
+  const indent = level * 24;
+  const toggleIcon = hasChildren ? (isExpanded ? "−" : "+") : "";
+  const toggleClass = hasChildren ? "report-drill-toggle" : "report-drill-leaf";
+  const recordLabel = node.count === 1 ? "Record" : "Records";
+
+  let html = `
+    <div class="report-drill-node" style="margin-left:${indent}px;" data-node-id="${escapeHtml(node.id)}">
+      <button type="button" class="${toggleClass}" data-node-id="${escapeHtml(node.id)}">${toggleIcon}</button>
+      <span class="report-drill-label">${escapeHtml(node.label)}</span>
+      <span class="report-drill-count">(${node.count} ${recordLabel})</span>
+    </div>
+  `;
+
+  if (isExpanded && hasChildren) {
+    for (const child of node.children) {
+      html += renderReportDrillDownNode(child, level + 1);
+    }
+  }
+
+  if (isExpanded && node.records.length > 0) {
+    html += renderReportDetailTable(node.records, level + 1);
+  }
+
+  return html;
+}
+
+function renderReportDetailTable(records, level) {
+  const indent = level * 24;
+  let html = `<div class="report-drill-details" style="margin-left:${indent}px;">`;
+  html += `<table class="master-data-table pricing-data-table report-drill-table">
+    <thead>
+      <tr>
+        <th>Financial Year</th>
+        <th>Division</th>
+        <th>State</th>
+        <th>Material Description</th>
+        <th>APR No.</th>
+        <th>Batch No.</th>
+        <th>Sl. No.</th>
+        <th>Period</th>
+        <th>CATEGORY</th>
+        <th>UNIT RATE</th>
+        <th>Pricing Heading</th>
+        <th>Value / Amount / Text</th>
+        <th>Remarks</th>
+        <th>Approving Authority</th>
+        <th>Date of Approval</th>
+        <th>Ref. Note of Approval</th>
+        ${isAdminAuthenticated ? "<th>Actions</th>" : ""}
+      </tr>
+    </thead>
+    <tbody>`;
+
+  records.forEach((row, i) => {
+    const display = getReportRowDisplayValues(row, i);
+    html += `<tr>
+      <td>${escapeHtml(display.financialYear)}</td>
+      <td>${escapeHtml(display.division)}</td>
+      <td>${escapeHtml(display.state)}</td>
+      <td>${escapeHtml(display.material)}</td>
+      <td>${escapeHtml(display.aprNumber)}</td>
+      <td>${escapeHtml(display.batchNo)}</td>
+      <td>${escapeHtml(display.slNo)}</td>
+      <td>${escapeHtml(display.period)}</td>
+      <td>${escapeHtml(display.category || "Not classified")}</td>
+      <td>${escapeHtml(display.unitRate)}</td>
+      <td>${escapeHtml(display.pricingHeading)}</td>
+      <td>${formatMultilineText(display.value)}</td>
+      <td>${escapeHtml(display.remarks)}</td>
+      <td>${escapeHtml(display.approvingAuthority)}</td>
+      <td>${escapeHtml(display.dateOfApproval)}</td>
+      <td>${escapeHtml(display.refNoteOfApproval)}</td>
+      ${isAdminAuthenticated ? `<td class="entry-actions"><button type="button" class="delete-btn" data-action="admin-delete-report" data-id="${row.id}">Delete</button></td>` : ""}
+    </tr>`;
+  });
+
+  html += `</tbody></table></div>`;
+  return html;
+}
+
 function openReportFilterPopup(colKey, anchorEl) {
   closeFilterPopup();
   activeReportFilterCol = colKey;
@@ -1393,7 +1541,7 @@ function renderReportsPanel() {
   const adminBtnLabel = isAdminAuthenticated ? "Admin Mode: ON" : "Admin Login";
   const filteredReports = getFilteredReportRecords();
   const hasActiveFilters = Object.values(reportRecordFilters).some((f) => f?.active);
-  const colCount = isAdminAuthenticated ? 19 : 18;
+  const tree = buildReportDrillDownTree(filteredReports);
 
   const headerCells = REPORT_COLS.map((col) => {
     const isActive = reportRecordFilters[col.key]?.active;
@@ -1402,6 +1550,10 @@ function renderReportsPanel() {
       <button type="button" class="report-filter-btn" data-report-filter-col="${col.key}" title="Filter ${col.label}">&#9660;</button>
     </th>`;
   }).join("");
+
+  const drillDownHtml = tree.length
+    ? tree.map((node) => renderReportDrillDownNode(node, 0)).join("")
+    : `<div class="empty-state">${completedPricingRecords.length ? "No records match the current filters." : "No completed records available yet."}</div>`;
 
   masterDataPanel.innerHTML = `
     <div class="master-data-card pricing-data-card">
@@ -1413,47 +1565,12 @@ function renderReportsPanel() {
         <button type="button" class="${isAdminAuthenticated ? "complete-btn" : "secondary-btn"}" id="adminLoginBtn">${adminBtnLabel}</button>
         ${isAdminAuthenticated ? '<button type="button" class="secondary-btn" id="adminLogoutBtn">Logout Admin</button>' : ""}
         ${hasActiveFilters ? '<button type="button" class="secondary-btn" id="clearAllReportFiltersBtn">Clear All Filters</button>' : ""}
+        <button type="button" class="secondary-btn" id="expandAllReportsBtn">Expand All</button>
+        <button type="button" class="secondary-btn" id="collapseAllReportsBtn">Collapse All</button>
+        <button type="button" class="secondary-btn" id="printPreviewBtn">Print Preview</button>
       </div>
-      <div class="table-wrapper saved-table-wrapper">
-        <table class="master-data-table pricing-data-table">
-          <thead>
-            <tr>
-              ${headerCells}
-              ${isAdminAuthenticated ? "<th>Actions</th>" : ""}
-            </tr>
-          </thead>
-          <tbody>
-            ${filteredReports.length
-              ? filteredReports.map((row, index) => {
-                  const display = getReportRowDisplayValues(row, index);
-                  return `
-                    <tr>
-                      <td>${escapeHtml(display.financialYear)}</td>
-                      <td>${escapeHtml(display.division)}</td>
-                      <td>${escapeHtml(display.state)}</td>
-                      <td>${escapeHtml(display.material)}</td>
-                      <td>${escapeHtml(display.aprNumber)}</td>
-                      <td>${escapeHtml(display.batchNo)}</td>
-                      <td>${escapeHtml(display.slNo)}</td>
-                      <td>${escapeHtml(display.period)}</td>
-                      <td>${escapeHtml(display.category || "Not classified")}</td>
-                      <td>${escapeHtml(display.unitRate)}</td>
-                      <td>${escapeHtml(display.pricingHeading)}</td>
-                      <td>${formatMultilineText(display.value)}</td>
-                      <td>${escapeHtml(display.remarks)}</td>
-                      <td>${escapeHtml(display.approvingAuthority)}</td>
-                      <td>${escapeHtml(display.dateOfApproval)}</td>
-                      <td>${escapeHtml(display.refNoteOfApproval)}</td>
-                      <td>${escapeHtml(display.completedAt)}</td>
-                      <td>${escapeHtml(display.status)}</td>
-                      <td>${escapeHtml(display.completedId)}</td>
-                      ${isAdminAuthenticated ? `<td class="entry-actions"><button type="button" class="delete-btn" data-action="admin-delete-report" data-id="${row.id}">Delete</button></td>` : ""}
-                    </tr>
-                  `;
-                }).join("")
-              : `<tr><td colspan="${colCount}" class="empty-state">${completedPricingRecords.length ? "No records match the current filters." : "No completed records available yet."}</td></tr>`}
-          </tbody>
-        </table>
+      <div class="table-wrapper saved-table-wrapper report-drill-wrapper">
+        ${drillDownHtml}
       </div>
     </div>
   `;
@@ -2491,14 +2608,33 @@ masterDataPanel.addEventListener("click", (event) => {
   } else if (target.dataset.misSort) {
     const key = target.dataset.misSort;
     misTableSort = { key, asc: misTableSort.key === key ? !misTableSort.asc : true }; renderMisPanel();
-  } else if (target.dataset.misDrillKey && target.dataset.misDrillValue) {
-    const key = target.dataset.misDrillKey, value = target.dataset.misDrillValue;
-    if (!misDrillDown.some((item) => item.key === key && item.value === value)) {
-      const label = MIS_FILTERS.find((item) => item.key === key)?.label || key;
-      misDrillDown.push({ key, value, label }); misTablePage = 1; renderMisPanel();
-    }
-  }
-});
+   } else if (target.dataset.misDrillKey && target.dataset.misDrillValue) {
+     const key = target.dataset.misDrillKey, value = target.dataset.misDrillValue;
+     if (!misDrillDown.some((item) => item.key === key && item.value === value)) {
+       const label = MIS_FILTERS.find((item) => item.key === key)?.label || key;
+       misDrillDown.push({ key, value, label }); misTablePage = 1; renderMisPanel();
+     }
+   } else if (target.id === "expandAllReportsBtn") {
+     function addAllNodeIds(nodes) {
+       for (const node of nodes) {
+         reportDrillDownExpanded.add(node.id);
+         if (node.children) addAllNodeIds(node.children);
+       }
+     }
+     const tree = buildReportDrillDownTree(getFilteredReportRecords());
+     addAllNodeIds(tree);
+     renderReportsPanel();
+   } else if (target.id === "collapseAllReportsBtn") {
+     reportDrillDownExpanded.clear();
+     renderReportsPanel();
+   } else if (target.classList.contains("report-drill-toggle")) {
+     const nodeId = target.dataset.nodeId;
+     if (reportDrillDownExpanded.has(nodeId)) reportDrillDownExpanded.delete(nodeId); else reportDrillDownExpanded.add(nodeId);
+     renderReportsPanel();
+   } else if (target.id === "printPreviewBtn") {
+     openReportPrintPreview();
+   }
+ });
 
 masterDataPanel.addEventListener("click", (event) => {
   const target = event.target;
@@ -2620,13 +2756,17 @@ masterDataPanel.addEventListener("click", (event) => {
     handleDeletePricingDataRow(target.dataset.id);
   } else if (target.id === "clearAllReportFiltersBtn") {
     reportRecordFilters = {};
+    reportDrillDownExpanded.clear();
     renderReportsPanel();
   } else if (target.classList.contains("report-filter-btn")) {
     openReportFilterPopup(target.dataset.reportFilterCol, target);
   } else if (target.id === "adminLoginBtn") {
     handleAdminLogin();
+    reportDrillDownExpanded.clear();
+    renderReportsPanel();
   } else if (target.id === "adminLogoutBtn") {
     isAdminAuthenticated = false;
+    reportDrillDownExpanded.clear();
     renderReportsPanel();
   } else if (target.matches("[data-action='admin-delete-report']")) {
     handleAdminDeleteReport(target.dataset.id);
@@ -3190,6 +3330,124 @@ document.addEventListener("click", (event) => {
     closeFilterPopup();
   }
 });
+
+function openReportPrintPreview() {
+  const filteredReports = getFilteredReportRecords();
+  if (!filteredReports.length) {
+    window.alert("No records to preview.");
+    return;
+  }
+
+  const recordsPerPage = 15;
+  const totalPages = Math.max(1, Math.ceil(filteredReports.length / recordsPerPage));
+
+  function renderPage(pageNum) {
+    const start = (pageNum - 1) * recordsPerPage;
+    const pageRecords = filteredReports.slice(start, start + recordsPerPage);
+    const headerCells = REPORT_COLS.map((col) => `<th>${escapeHtml(col.label)}</th>`).join("");
+    const rows = pageRecords.map((row, idx) => {
+      const display = getReportRowDisplayValues(row, start + idx);
+      return `<tr>
+        <td>${escapeHtml(display.financialYear)}</td>
+        <td>${escapeHtml(display.division)}</td>
+        <td>${escapeHtml(display.state)}</td>
+        <td>${escapeHtml(display.material)}</td>
+        <td>${escapeHtml(display.aprNumber)}</td>
+        <td>${escapeHtml(display.batchNo)}</td>
+        <td>${escapeHtml(display.slNo)}</td>
+        <td>${escapeHtml(display.period)}</td>
+        <td>${escapeHtml(display.category || "Not classified")}</td>
+        <td>${escapeHtml(display.unitRate)}</td>
+        <td>${escapeHtml(display.pricingHeading)}</td>
+        <td>${escapeHtml(display.value)}</td>
+        <td>${escapeHtml(display.remarks)}</td>
+        <td>${escapeHtml(display.approvingAuthority)}</td>
+        <td>${escapeHtml(display.dateOfApproval)}</td>
+        <td>${escapeHtml(display.refNoteOfApproval)}</td>
+      </tr>`;
+    }).join("");
+
+    return `<div class="preview-page" data-page="${pageNum}">
+      <div class="preview-page-header">REPORTS - Page ${pageNum} of ${totalPages}</div>
+      <table class="master-data-table pricing-data-table preview-table">
+        <thead><tr>${headerCells}</tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  }
+
+  const modal = document.createElement("div");
+  modal.className = "report-print-preview-modal";
+  modal.id = "reportPrintPreviewModal";
+  modal.innerHTML = `
+    <div class="report-print-preview-overlay"></div>
+    <div class="report-print-preview-container">
+      <div class="report-print-preview-toolbar">
+        <button type="button" class="secondary-btn" id="previewZoomOut">Zoom −</button>
+        <button type="button" class="secondary-btn" id="previewZoomIn">Zoom +</button>
+        <button type="button" class="secondary-btn" id="previewFitWidth">Fit Width</button>
+        <button type="button" class="secondary-btn" id="previewFitPage">Fit Page</button>
+        <span class="preview-page-indicator" id="previewPageIndicator">Page 1 of ${totalPages}</span>
+        <button type="button" class="add-row-btn" id="previewPrintBtn">Print</button>
+        <button type="button" class="secondary-btn" id="previewCloseBtn">Close</button>
+      </div>
+      <div class="report-print-preview-scroll" id="previewScrollArea">
+        <div class="report-print-preview-content" id="previewContent" style="transform: scale(${reportDrillDownZoom / 100}); transform-origin: top center;">
+          ${Array.from({ length: totalPages }, (_, i) => renderPage(i + 1)).join("")}
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  document.body.style.overflow = "hidden";
+
+  const scrollArea = modal.querySelector("#previewScrollArea");
+  const content = modal.querySelector("#previewContent");
+  const pageIndicator = modal.querySelector("#previewPageIndicator");
+
+  function updateZoom(newZoom) {
+    reportDrillDownZoom = Math.min(200, Math.max(50, newZoom));
+    content.style.transform = `scale(${reportDrillDownZoom / 100})`;
+    content.style.transformOrigin = "top center";
+  }
+
+  modal.querySelector("#previewZoomIn").addEventListener("click", () => updateZoom(reportDrillDownZoom + 10));
+  modal.querySelector("#previewZoomOut").addEventListener("click", () => updateZoom(reportDrillDownZoom - 10));
+  modal.querySelector("#previewFitWidth").addEventListener("click", () => {
+    const containerWidth = scrollArea.clientWidth - 40;
+    const pageWidth = content.firstElementChild.offsetWidth;
+    if (pageWidth > 0) {
+      const scale = Math.min(1, containerWidth / pageWidth);
+      updateZoom(Math.round(scale * 100));
+    }
+  });
+  modal.querySelector("#previewFitPage").addEventListener("click", () => {
+    const containerHeight = scrollArea.clientHeight - 40;
+    const pageHeight = content.firstElementChild.offsetHeight;
+    if (pageHeight > 0) {
+      const scale = Math.min(1, containerHeight / pageHeight);
+      updateZoom(Math.round(scale * 100));
+    }
+  });
+  modal.querySelector("#previewPrintBtn").addEventListener("click", () => window.print());
+  modal.querySelector("#previewCloseBtn").addEventListener("click", () => {
+    modal.remove();
+    document.body.style.overflow = "";
+  });
+  modal.querySelector(".report-print-preview-overlay").addEventListener("click", () => {
+    modal.remove();
+    document.body.style.overflow = "";
+  });
+
+  scrollArea.addEventListener("scroll", () => {
+    const scrollTop = scrollArea.scrollTop;
+    const pageHeight = content.firstElementChild.offsetHeight * (reportDrillDownZoom / 100);
+    if (pageHeight > 0) {
+      const currentPage = Math.min(totalPages, Math.max(1, Math.floor(scrollTop / pageHeight) + 1));
+      pageIndicator.textContent = `Page ${currentPage} of ${totalPages}`;
+    }
+  });
+}
 
 const yearEl = document.getElementById("year");
 yearEl.textContent = new Date().getFullYear();
