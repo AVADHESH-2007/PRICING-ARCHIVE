@@ -1096,6 +1096,10 @@ body.pricing-view-active .master-data-card {
   border-radius: 12px;
 }
 
+body.pricing-view-active .print-circular-card {
+  overflow: auto;
+}
+
 body.pricing-view-active .panel-heading {
   margin-bottom: 8px;
   flex-shrink: 0;
