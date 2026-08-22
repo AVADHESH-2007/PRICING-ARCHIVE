@@ -935,10 +935,12 @@ function buildReportDrillDownTree(records) {
 
 function renderReportDrillDownNode(node, level = 0) {
   const hasChildren = node.children && node.children.length > 0;
+  const hasRecords = node.records && node.records.length > 0;
+  const hasToggle = hasChildren || hasRecords;
   const isExpanded = reportDrillDownExpanded.has(node.id);
   const indent = level * 24;
-  const toggleIcon = hasChildren ? (isExpanded ? "−" : "+") : "";
-  const toggleClass = hasChildren ? "report-drill-toggle" : "report-drill-leaf";
+  const toggleIcon = hasToggle ? (isExpanded ? "−" : "+") : "";
+  const toggleClass = hasToggle ? "report-drill-toggle" : "report-drill-leaf";
   const recordLabel = node.count === 1 ? "Record" : "Records";
 
   let html = `
@@ -955,7 +957,7 @@ function renderReportDrillDownNode(node, level = 0) {
     }
   }
 
-  if (isExpanded && node.records.length > 0) {
+  if (isExpanded && hasRecords) {
     html += renderReportDetailTable(node.records, level + 1);
   }
 
@@ -1901,29 +1903,25 @@ function renderPrintCircularPanel() {
         </table>
       </div>
         <div class="circular-gst">GST will be charged extra as applicable.</div>
-        <div class="circular-terms">
-          <div class="circular-terms-label">Other terms and conditions</div>
+       <div class="circular-terms">
+         <div class="circular-terms-label">Other terms and conditions</div>
           <div class="circular-terms-editor" contenteditable="true" placeholder="Enter other terms and conditions">${printCircularTermsHtml || ""}</div>
         </div>
         <div style="text-align: right; margin-top: 20px;">
           <textarea class="circular-signatory-textarea" placeholder="Enter signatory details">${escapeHtml(printCircularSignatoryText || "")}</textarea>
         </div>
        <div style="text-align: left; margin-top: 10px;">To State Incharge (Mkting) / State Finance Incharge</div>
-       <div class="circular-cc">
-         <div class="circular-cc-label">CC To</div>
-         <textarea class="circular-cc-textarea" placeholder="Enter Name / Designation / Department / Address">${escapeHtml(printCircularCcText || "")}</textarea>
-       </div>
-       <div class="table-actions pricing-data-actions" style="margin-top:12px">
-         <button type="button" class="add-row-btn" id="printCircularPrintBtn">Print Circular</button>
+        <div class="circular-cc">
+          <div class="circular-cc-label">CC To</div>
+          <textarea class="circular-cc-textarea" placeholder="Enter Name / Designation / Department / Address">${escapeHtml(printCircularCcText || "")}</textarea>
         </div>
-       ` : ""}
+        <div class="circular-page-footer">© ${new Date().getFullYear()} Pricing Data Portal | All Rights Reserved</div>
+        <div class="table-actions pricing-data-actions" style="margin-top:12px">
+          <button type="button" class="add-row-btn" id="printCircularPrintBtn">Print Circular</button>
+         </div>
+        ` : ""}
     </div>
   `;
-  const ccTextarea = masterDataPanel.querySelector(".circular-cc-textarea");
-  if (ccTextarea) {
-    ccTextarea.style.height = "auto";
-    ccTextarea.style.height = ccTextarea.scrollHeight + "px";
-  }
   const signatoryTextarea = masterDataPanel.querySelector(".circular-signatory-textarea");
   if (signatoryTextarea) {
     signatoryTextarea.style.height = "auto";
@@ -1948,8 +1946,8 @@ function renderPrintCircularPanel() {
           table.style.tableLayout = "fixed";
           const cells = table.querySelectorAll("td, th");
           cells.forEach((cell) => {
-            cell.style.border = "1px solid #cbd5e1";
-            cell.style.padding = "6px 8px";
+            if (!cell.style.border) cell.style.border = "1px solid #cbd5e1";
+            if (!cell.style.padding) cell.style.padding = "6px 8px";
             cell.style.wordWrap = "break-word";
             cell.style.overflowWrap = "anywhere";
             cell.style.whiteSpace = "normal";
@@ -1961,13 +1959,27 @@ function renderPrintCircularPanel() {
           while (div.firstChild) {
             fragment.appendChild(div.firstChild);
           }
-          document.execCommand("insertHTML", false, div.innerHTML);
+          const selection = window.getSelection();
+          if (selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
+            range.deleteContents();
+            range.insertNode(fragment);
+            range.collapse(false);
+          } else {
+            termsEditor.appendChild(fragment);
+          }
+          printCircularTermsHtml = termsEditor.innerHTML || "";
         } else {
           document.execCommand("insertText", false, text);
+          printCircularTermsHtml = termsEditor.innerHTML || "";
         }
       } else {
         document.execCommand("insertHTML", false, text.replace(/\n/g, "<br>"));
+        printCircularTermsHtml = termsEditor.innerHTML || "";
       }
+    });
+    termsEditor.addEventListener("input", () => {
+      printCircularTermsHtml = termsEditor.innerHTML || "";
     });
   }
   const introEditor = masterDataPanel.querySelector(".circular-intro-editor");
@@ -2474,6 +2486,7 @@ masterDataButton.addEventListener("click", () => {
   currentMasterDataView = "material";
   currentAppView = "master";
   document.body.classList.remove("pricing-view-active");
+  document.body.classList.remove("print-circular-active");
   masterDataPanel.classList.remove("hidden");
   renderMasterDataPanel();
 });
@@ -2481,6 +2494,7 @@ masterDataButton.addEventListener("click", () => {
 pricingDataButton.addEventListener("click", () => {
   currentAppView = "pricing";
   document.body.classList.add("pricing-view-active");
+  document.body.classList.remove("print-circular-active");
   masterDataPanel.classList.remove("hidden");
   pricingDataRows = normalizePricingDataRows(pricingDataRows);
   persistPricingDataState();
@@ -2490,6 +2504,7 @@ pricingDataButton.addEventListener("click", () => {
 savedPricingRecordsButton.addEventListener("click", () => {
   currentAppView = "saved-pricing-records";
   document.body.classList.add("pricing-view-active");
+  document.body.classList.remove("print-circular-active");
   masterDataPanel.classList.remove("hidden");
   renderSavedPricingRecordsPanel();
 });
@@ -2497,6 +2512,7 @@ savedPricingRecordsButton.addEventListener("click", () => {
 reportsButton.addEventListener("click", () => {
   currentAppView = "reports";
   document.body.classList.add("pricing-view-active");
+  document.body.classList.remove("print-circular-active");
   masterDataPanel.classList.remove("hidden");
   renderReportsPanel();
 });
@@ -2504,6 +2520,7 @@ reportsButton.addEventListener("click", () => {
 misButton.addEventListener("click", () => {
   currentAppView = "mis";
   document.body.classList.add("pricing-view-active");
+  document.body.classList.remove("print-circular-active");
   masterDataPanel.classList.remove("hidden");
   renderMisPanel();
 });
@@ -2511,6 +2528,7 @@ misButton.addEventListener("click", () => {
 printCircularButton.addEventListener("click", () => {
   currentAppView = "print-circular";
   document.body.classList.add("pricing-view-active");
+  document.body.classList.add("print-circular-active");
   masterDataPanel.classList.remove("hidden");
   printCircularSelectedApr = "";
   printCircularCcText = "";
@@ -2614,16 +2632,18 @@ masterDataPanel.addEventListener("click", (event) => {
        const label = MIS_FILTERS.find((item) => item.key === key)?.label || key;
        misDrillDown.push({ key, value, label }); misTablePage = 1; renderMisPanel();
      }
-   } else if (target.id === "expandAllReportsBtn") {
-     function addAllNodeIds(nodes) {
-       for (const node of nodes) {
-         reportDrillDownExpanded.add(node.id);
-         if (node.children) addAllNodeIds(node.children);
-       }
-     }
-     const tree = buildReportDrillDownTree(getFilteredReportRecords());
-     addAllNodeIds(tree);
-     renderReportsPanel();
+    } else if (target.id === "expandAllReportsBtn") {
+      function addAllNodeIds(nodes) {
+        for (const node of nodes) {
+          if ((node.children && node.children.length > 0) || (node.records && node.records.length > 0)) {
+            reportDrillDownExpanded.add(node.id);
+          }
+          if (node.children) addAllNodeIds(node.children);
+        }
+      }
+      const tree = buildReportDrillDownTree(getFilteredReportRecords());
+      addAllNodeIds(tree);
+      renderReportsPanel();
    } else if (target.id === "collapseAllReportsBtn") {
      reportDrillDownExpanded.clear();
      renderReportsPanel();
@@ -2775,6 +2795,10 @@ masterDataPanel.addEventListener("click", (event) => {
       window.alert("Please select an APR No. before printing.");
       return;
     }
+    const termsEditor = masterDataPanel.querySelector(".circular-terms-editor");
+    if (termsEditor) {
+      printCircularTermsHtml = termsEditor.innerHTML || "";
+    }
     const selected = printCircularSelectedApr
       ? completedPricingRecords.filter((r) => r.aprNumber === printCircularSelectedApr)
       : [];
@@ -2918,7 +2942,7 @@ masterDataPanel.addEventListener("click", (event) => {
     .circular-table {
       width: 100%;
       border-collapse: collapse;
-      table-layout: fixed;
+      table-layout: auto;
     }
     .circular-table thead {
       display: table-header-group;
@@ -2940,28 +2964,16 @@ masterDataPanel.addEventListener("click", (event) => {
     .circular-table td {
       padding: 6px 8px;
       border: 1px solid #cbd5e1;
-      text-align: left;
       font-size: 9.5pt;
       vertical-align: top;
-      word-wrap: break-word;
-      overflow-wrap: anywhere;
-      white-space: pre-wrap;
     }
     .circular-table tbody tr:nth-child(even) {
       background: #f8fafc;
     }
-    .col-slno { width: 6%; }
-    .col-heading { width: 40%; }
-    .col-value { width: 31%; }
-    .col-remarks { width: 23%; }
-    .circular-table .col-heading {
-      white-space: normal;
-      overflow-wrap: normal;
-      word-wrap: normal;
-    }
-    .circular-table td.col-value {
-      text-align: right !important;
-    }
+    .col-slno { width: 1%; white-space: nowrap; }
+    .col-heading { white-space: normal; overflow-wrap: anywhere; word-wrap: break-word; }
+    .col-value { white-space: nowrap; overflow-wrap: normal; word-wrap: normal; text-align: right; }
+    .col-remarks { white-space: nowrap; overflow-wrap: normal; word-wrap: normal; }
     .circular-intro {
       font-size: 10pt;
       font-weight: 600;
@@ -3029,7 +3041,7 @@ masterDataPanel.addEventListener("click", (event) => {
     }
     .circular-terms {
       margin-top: 18px;
-      page-break-inside: avoid;
+      page-break-inside: auto;
     }
     .circular-terms-label {
       font-size: 9.5pt;
@@ -3064,6 +3076,15 @@ masterDataPanel.addEventListener("click", (event) => {
       white-space: normal;
       vertical-align: top;
     }
+    .circular-page-footer {
+      margin-top: 18px;
+      padding-top: 10px;
+      border-top: 1px solid #dbe5f0;
+      text-align: center;
+      font-size: 8pt;
+      color: #64748b;
+      font-weight: 500;
+    }
     .circular-cc {
       margin-top: 18px;
       page-break-inside: avoid;
@@ -3092,7 +3113,9 @@ masterDataPanel.addEventListener("click", (event) => {
       .circular-wrap { max-width: none; margin: 0; }
       .circular-table tr { page-break-inside: avoid; }
       .circular-table thead { display: table-header-group; }
-      .circular-footer { page-break-inside: avoid; }
+      .circular-footer { page-break-inside: auto; }
+      .circular-terms { page-break-inside: auto; }
+      .circular-terms-box table { page-break-inside: auto; }
       .circular-signatories { page-break-inside: avoid; }
       .circular-cc { page-break-inside: avoid; }
     }
@@ -3164,12 +3187,17 @@ masterDataPanel.addEventListener("click", (event) => {
           <div class="circular-cc-label">CC To</div>
           <div class="circular-cc-box">${escapeHtml(printCircularCcText || "").replace(/\n/g, "<br>")}</div>
         </div>
+        <div class="circular-page-footer">© ${new Date().getFullYear()} Pricing Data Portal | All Rights Reserved</div>
       </div>
    </div>
   <script>
     window.onload = function() {
-      window.print();
-      setTimeout(function() { window.close(); }, 100);
+      requestAnimationFrame(function() {
+        setTimeout(function() {
+          window.print();
+          setTimeout(function() { window.close(); }, 500);
+        }, 800);
+      });
     };
   <\/script>
 </body>
@@ -3202,16 +3230,15 @@ masterDataPanel.addEventListener("change", (event) => {
     renderPrintCircularPanel();
   } else if (event.target.classList.contains("circular-cc-textarea")) {
     printCircularCcText = event.target.value || "";
-    event.target.style.height = "auto";
-    event.target.style.height = event.target.scrollHeight + "px";
   } else if (event.target.classList.contains("circular-signatory-textarea")) {
     printCircularSignatoryText = event.target.value || "";
     event.target.style.height = "auto";
     event.target.style.height = event.target.scrollHeight + "px";
-  } else if (event.target.classList.contains("circular-terms-editor")) {
-    printCircularTermsHtml = event.target.innerHTML || "";
-    event.target.style.height = "auto";
-    event.target.style.height = event.target.scrollHeight + "px";
+  } else if (event.target.closest(".circular-terms-editor")) {
+    const editor = event.target.closest(".circular-terms-editor");
+    printCircularTermsHtml = editor.innerHTML || "";
+    editor.style.height = "auto";
+    editor.style.height = editor.scrollHeight + "px";
   } else if (event.target.id === "masterDataModeSelect") {
     currentMasterDataView = event.target.value;
     renderMasterDataPanel();
