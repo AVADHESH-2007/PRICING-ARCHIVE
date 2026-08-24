@@ -89,6 +89,7 @@ let printCircularEffectiveFrom = "";
 let reportDrillDownExpanded = new Set();
 let reportDrillDownZoom = 100;
 let reportDrillDownPage = 1;
+let firstRowAutoCopied = false;
 let databaseSyncQueue = Promise.resolve();
 let databaseAvailable = false;
 
@@ -593,21 +594,21 @@ function renderPricingHeadingEntry() {
 function buildEntryRowHtml(row, index) {
   return `
     <tr>
-      <td><select class="pricing-financial-year-select" data-row-id="${row.id}"><option value="">Select financial year</option>${financialYearEntries.map((e) => `<option value="${e.id}" ${e.id === row.financialYearId ? "selected" : ""}>${escapeHtml(e.year)}</option>`).join("")}</select></td>
-      <td><select class="pricing-division-select" data-row-id="${row.id}"><option value="">Select division</option><option value="FERTILIZER" ${row.division === "FERTILIZER" ? "selected" : ""}>FERTILIZER</option><option value="IPD" ${row.division === "IPD" ? "selected" : ""}>IPD</option><option value="TIE-UP" ${row.division === "TIE-UP" ? "selected" : ""}>TIE-UP</option></select></td>
-      <td><select class="pricing-state-select" data-row-id="${row.id}"><option value="">Select state</option>${stateNameEntries.map((e) => `<option value="${e.id}" ${e.id === row.stateId ? "selected" : ""}>${escapeHtml(e.name)}</option>`).join("")}</select></td>
-      <td><select class="pricing-material-select" data-row-id="${row.id}"><option value="">Select material</option>${masterDataEntries.map((e) => `<option value="${e.id}" ${e.id === row.materialId ? "selected" : ""}>${escapeHtml(e.description)}</option>`).join("")}</select></td>
-      <td><input type="text" class="pricing-batchno-input" data-row-id="${row.id}" value="${escapeHtml(row.batchNo || "")}" placeholder="Enter batch no." /></td>
+      <td><select class="pricing-financial-year-select" data-row-id="${row.id}" required><option value="">Select financial year</option>${financialYearEntries.map((e) => `<option value="${e.id}" ${e.id === row.financialYearId ? "selected" : ""}>${escapeHtml(e.year)}</option>`).join("")}</select></td>
+      <td><select class="pricing-division-select" data-row-id="${row.id}" required><option value="">Select division</option><option value="FERTILIZER" ${row.division === "FERTILIZER" ? "selected" : ""}>FERTILIZER</option><option value="IPD" ${row.division === "IPD" ? "selected" : ""}>IPD</option><option value="TIE-UP" ${row.division === "TIE-UP" ? "selected" : ""}>TIE-UP</option></select></td>
+      <td><select class="pricing-state-select" data-row-id="${row.id}" required><option value="">Select state</option>${stateNameEntries.map((e) => `<option value="${e.id}" ${e.id === row.stateId ? "selected" : ""}>${escapeHtml(e.name)}</option>`).join("")}</select></td>
+      <td><select class="pricing-material-select" data-row-id="${row.id}" required><option value="">Select material</option>${masterDataEntries.map((e) => `<option value="${e.id}" ${e.id === row.materialId ? "selected" : ""}>${escapeHtml(e.description)}</option>`).join("")}</select></td>
+      <td><input type="text" class="pricing-batchno-input" data-row-id="${row.id}" value="${escapeHtml(row.batchNo || "")}" placeholder="Enter batch no." required /></td>
       <td class="auto-slno-cell">${index + 1}</td>
-      <td><textarea class="pricing-period-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter period">${escapeHtml(row.period)}</textarea></td>
-      <td><select class="pricing-category-select" data-row-id="${row.id}"><option value="">Select category</option>${categoryEntries.map((e) => `<option value="${escapeHtml(e.name)}" ${row.category === e.name ? "selected" : ""}>${escapeHtml(e.name)}</option>`).join("")}</select></td>
-      <td><select class="pricing-unit-rate-select" data-row-id="${row.id}"><option value="">Select unit rate</option>${unitRateEntries.map((e) => `<option value="${escapeHtml(e.name)}" ${row.unitRate === e.name ? "selected" : ""}>${escapeHtml(e.name)}</option>`).join("")}</select></td>
-      <td><select class="pricing-heading-select" data-row-id="${row.id}"><option value="">Select pricing heading</option>${pricingHeadingEntries.map((e) => `<option value="${e.id}" ${e.id === row.pricingHeadingId ? "selected" : ""}>${escapeHtml(e.description)}</option>`).join("")}</select></td>
-      <td><textarea class="pricing-value-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter value, slabs, conditions, formulas, or text">${escapeHtml(row.value)}</textarea></td>
-      <td><textarea class="pricing-remarks-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter remarks">${escapeHtml(row.remarks)}</textarea></td>
-      <td><input type="text" class="pricing-approving-authority-input" data-row-id="${row.id}" value="${escapeHtml(row.approvingAuthority || "")}" placeholder="Enter approving authority" /></td>
-      <td><input type="date" class="pricing-date-of-approval-input" data-row-id="${row.id}" value="${escapeHtml(row.dateOfApproval || "")}" /></td>
-      <td><textarea class="pricing-ref-note-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter ref. note of approval">${escapeHtml(row.refNoteOfApproval)}</textarea></td>
+      <td><textarea class="pricing-period-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter period" required>${escapeHtml(row.period)}</textarea></td>
+      <td><select class="pricing-category-select" data-row-id="${row.id}" required><option value="">Select category</option>${categoryEntries.map((e) => `<option value="${escapeHtml(e.name)}" ${row.category === e.name ? "selected" : ""}>${escapeHtml(e.name)}</option>`).join("")}</select></td>
+      <td><select class="pricing-unit-rate-select" data-row-id="${row.id}" required><option value="">Select unit rate</option>${unitRateEntries.map((e) => `<option value="${escapeHtml(e.name)}" ${row.unitRate === e.name ? "selected" : ""}>${escapeHtml(e.name)}</option>`).join("")}</select></td>
+      <td><select class="pricing-heading-select" data-row-id="${row.id}" required><option value="">Select pricing heading</option>${pricingHeadingEntries.map((e) => `<option value="${e.id}" ${e.id === row.pricingHeadingId ? "selected" : ""}>${escapeHtml(e.description)}</option>`).join("")}</select></td>
+      <td><textarea class="pricing-value-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter value, slabs, conditions, formulas, or text" required>${escapeHtml(row.value)}</textarea></td>
+      <td><textarea class="pricing-remarks-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter remarks" required>${escapeHtml(row.remarks)}</textarea></td>
+      <td><input type="text" class="pricing-approving-authority-input" data-row-id="${row.id}" value="${escapeHtml(row.approvingAuthority || "")}" placeholder="Enter approving authority" required /></td>
+      <td><input type="date" class="pricing-date-of-approval-input" data-row-id="${row.id}" value="${escapeHtml(row.dateOfApproval || "")}" required /></td>
+      <td><textarea class="pricing-ref-note-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter ref. note of approval" required>${escapeHtml(row.refNoteOfApproval)}</textarea></td>
       <td class="entry-actions"><button type="button" class="delete-btn" data-action="delete-pricing-data-row" data-id="${row.id}">Delete</button></td>
     </tr>
   `;
@@ -633,6 +634,200 @@ const PRICING_DISPLAY_COLS = [
   { key: "dateOfApproval", label: "Date of Approval", type: "text" },
   { key: "refNoteOfApproval", label: "Ref. Note of Approval", type: "text" },
 ];
+
+const MASTER_FIELDS = [
+  { key: "financialYearId", label: "Financial Year", selector: ".pricing-financial-year-select", type: "select" },
+  { key: "division", label: "Division", selector: ".pricing-division-select", type: "select" },
+  { key: "stateId", label: "State", selector: ".pricing-state-select", type: "select" },
+  { key: "materialId", label: "Material Description", selector: ".pricing-material-select", type: "select" },
+  { key: "batchNo", label: "Batch No.", selector: ".pricing-batchno-input", type: "text" },
+  { key: "period", label: "Period", selector: ".pricing-period-input", type: "text" },
+  { key: "category", label: "Category", selector: ".pricing-category-select", type: "select" },
+  { key: "unitRate", label: "Unit Rate", selector: ".pricing-unit-rate-select", type: "select" },
+  { key: "approvingAuthority", label: "Approving Authority", selector: ".pricing-approving-authority-input", type: "text" },
+  { key: "dateOfApproval", label: "Date of Approval", selector: ".pricing-date-of-approval-input", type: "date" },
+  { key: "refNoteOfApproval", label: "Ref. Note of Approval", selector: ".pricing-ref-note-input", type: "text" },
+  { key: "remarks", label: "Remarks", selector: ".pricing-remarks-input", type: "text" },
+];
+
+function getMasterFieldValue(row, fieldName) {
+  const value = row[fieldName];
+  if (value === undefined || value === null) return "";
+  return String(value).trim();
+}
+
+function isMasterFieldValid(field, fieldName) {
+  if (!field) return false;
+  const rawValue = field.type === "checkbox" || field.type === "radio" ? (field.checked ? "checked" : "") : String(field.value || "").trim();
+  if (!rawValue) return false;
+  if (field.tagName === "SELECT" && rawValue === "") return false;
+  if (field.type === "date" && !/^\d{4}-\d{2}-\d{2}$/.test(rawValue)) return false;
+  return true;
+}
+
+function isFirstRowComplete() {
+  if (!pricingDataRows.length) return false;
+  const firstRow = pricingDataRows[0];
+  return MASTER_FIELDS.every((field) => {
+    const value = getMasterFieldValue(firstRow, field.key);
+    return value !== "";
+  });
+}
+
+function copyFirstRowValuesToRow(sourceRow, targetRow) {
+  MASTER_FIELDS.forEach((field) => {
+    const value = getMasterFieldValue(sourceRow, field.key);
+    if (value !== "") {
+      targetRow[field.key] = value;
+    }
+  });
+}
+
+function triggerFieldEvents(rowId, fieldKey) {
+  const fieldMeta = MASTER_FIELDS.find((f) => f.key === fieldKey);
+  if (!fieldMeta) return;
+  const container = document.querySelector(".entry-table-wrapper");
+  if (!container) return;
+  const field = container.querySelector(`[data-row-id="${rowId}"]${fieldMeta.selector}`);
+  if (!field) return;
+  field.dispatchEvent(new Event("input", { bubbles: true }));
+  field.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+function copyFirstRowValuesToAllRows() {
+  if (!pricingDataRows.length) return;
+  const sourceRow = pricingDataRows[0];
+  for (let i = 1; i < pricingDataRows.length; i++) {
+    copyFirstRowValuesToRow(sourceRow, pricingDataRows[i]);
+  }
+  persistPricingDataState();
+  renderPricingDataTable();
+  for (let i = 1; i < pricingDataRows.length; i++) {
+    MASTER_FIELDS.forEach((field) => {
+      triggerFieldEvents(pricingDataRows[i].id, field.key);
+    });
+  }
+}
+
+function showFieldError(field) {
+  if (!field) return;
+  field.classList.add("pricing-field-error");
+  field.setAttribute("aria-invalid", "true");
+  let error = field.parentElement.querySelector(".pricing-validation-error");
+  if (!error) {
+    error = document.createElement("div");
+    error.className = "pricing-validation-error";
+    error.textContent = "This field is required. Please enter or select a value.";
+    field.parentElement.appendChild(error);
+  }
+}
+
+function clearFieldError(field) {
+  if (!field) return;
+  field.classList.remove("pricing-field-error");
+  field.removeAttribute("aria-invalid");
+  const error = field.parentElement.querySelector(".pricing-validation-error");
+  if (error) error.remove();
+}
+
+function validatePricingDataBeforeSave() {
+  let isValid = true;
+  let firstInvalidField = null;
+  const container = document.querySelector(".entry-table-wrapper");
+  if (!container) return false;
+
+  const tbody = container.querySelector("tbody");
+  if (!tbody) return false;
+
+  const rows = tbody.querySelectorAll("tr");
+  rows.forEach((row, rowIndex) => {
+    if (row.closest(".entry-actions")) return;
+    MASTER_FIELDS.forEach((fieldMeta) => {
+      const field = row.querySelector(fieldMeta.selector);
+      if (!field) return;
+      if (field.closest(".entry-actions")) return;
+      if (!isMasterFieldValid(field, fieldMeta.key)) {
+        isValid = false;
+        showFieldError(field);
+        if (!firstInvalidField) firstInvalidField = field;
+      } else {
+        clearFieldError(field);
+      }
+    });
+  });
+
+  if (!isValid && firstInvalidField) {
+    firstInvalidField.focus();
+    firstInvalidField.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  return isValid;
+}
+
+function simulateServerSideValidation(rows) {
+  const errors = [];
+  rows.forEach((row, rowIndex) => {
+    MASTER_FIELDS.forEach((fieldMeta) => {
+      const value = getMasterFieldValue(row, fieldMeta.key);
+      if (!value) {
+        errors.push({ row: rowIndex + 1, field: fieldMeta.key, message: `${fieldMeta.label} is required.` });
+      } else if (fieldMeta.type === "date" && !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        errors.push({ row: rowIndex + 1, field: fieldMeta.key, message: `${fieldMeta.label} is not a valid date.` });
+      }
+    });
+  });
+  return errors;
+}
+
+function applyFirstRowToAllRows() {
+  if (!pricingDataRows.length) return;
+
+  const container = document.querySelector(".entry-table-wrapper");
+  if (!container) return;
+  const tbody = container.querySelector("tbody");
+  if (!tbody) return;
+  const firstRowElement = tbody.querySelector("tr");
+  if (!firstRowElement) return;
+
+  const allValid = MASTER_FIELDS.every((fieldMeta) => {
+    const field = firstRowElement.querySelector(fieldMeta.selector);
+    if (!field) return false;
+    return isMasterFieldValid(field, fieldMeta.key);
+  });
+
+  if (!allValid) {
+    window.alert("Please complete all master fields in the first row before applying to all rows.");
+    return;
+  }
+  const confirmed = window.confirm("Do you want to copy the first-row values to all pricing rows? Existing values in those fields will be replaced.");
+  if (!confirmed) return;
+
+  const sourceValues = {};
+  MASTER_FIELDS.forEach((fieldMeta) => {
+    const field = firstRowElement.querySelector(fieldMeta.selector);
+    if (field) {
+      sourceValues[fieldMeta.key] = field.value || "";
+    }
+  });
+
+  for (let i = 0; i < pricingDataRows.length; i++) {
+    MASTER_FIELDS.forEach((fieldMeta) => {
+      const value = sourceValues[fieldMeta.key];
+      if (value !== "") {
+        pricingDataRows[i][fieldMeta.key] = value;
+      }
+    });
+  }
+
+  persistPricingDataState();
+  renderPricingDataTable();
+  for (let i = 1; i < pricingDataRows.length; i++) {
+    MASTER_FIELDS.forEach((field) => {
+      triggerFieldEvents(pricingDataRows[i].id, field.key);
+    });
+  }
+  window.alert("First-row values have been applied to all rows.");
+}
 
 const SAVED_COLS = PRICING_DISPLAY_COLS;
 
@@ -869,6 +1064,124 @@ function getFilteredReportRecords() {
       return applyReportFilter(cell, f);
     });
   });
+}
+
+function getCurrentVisibleReportRows() {
+  const tree = buildReportDrillDownTree(getFilteredReportRecords());
+  const visibleRows = [];
+
+  function collectVisibleRecords(nodes) {
+    for (const node of nodes) {
+      const isExpanded = reportDrillDownExpanded.has(node.id);
+      if (isExpanded && node.children && node.children.length > 0) {
+        collectVisibleRecords(node.children);
+      }
+      if (isExpanded && node.records && node.records.length > 0) {
+        visibleRows.push(...node.records);
+      }
+    }
+  }
+
+  collectVisibleRecords(tree);
+  return visibleRows;
+}
+
+function getNodePath(nodeId) {
+  const parts = nodeId.split(":");
+  if (parts.length < 5) return {};
+  return {
+    financialYear: parts[1] || "",
+    division: parts[2] || "",
+    state: parts[3] || "",
+    material: parts[4] || "",
+    aprNumber: parts[6] || "",
+  };
+}
+
+function buildReportFileName() {
+  const filtered = getFilteredReportRecords();
+  if (!filtered.length) return "Reports.xlsx";
+  const seen = new Set();
+  const parts = [];
+  for (const row of filtered) {
+    const fy = financialYearEntries.find((e) => e.id === row.financialYearId)?.year || "";
+    const div = row.division || "";
+    const state = stateNameEntries.find((e) => e.id === row.stateId)?.name || "";
+    const key = `${fy}|${div}|${state}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      parts.push([fy, div, state].filter(Boolean).join("_"));
+    }
+    if (parts.length >= 3) break;
+  }
+  const suffix = parts.length ? `_${parts.join("_")}` : "";
+  const safe = suffix.replace(/[^A-Za-z0-9_\-]/g, "_");
+  return `Reports${safe}.xlsx`;
+}
+
+function exportCurrentReportToExcel() {
+  if (typeof XLSX === "undefined") {
+    window.alert("Excel library is not loaded. Please check your internet connection and try again.");
+    return;
+  }
+
+  const visibleRows = getCurrentVisibleReportRows();
+  if (!visibleRows.length) {
+    window.alert("No records available for export.");
+    return;
+  }
+
+  const btn = document.getElementById("exportExcelBtn");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Exporting...";
+  }
+
+  try {
+    const data = visibleRows.map((row, index) => {
+      const display = getReportRowDisplayValues(row, index);
+      return {
+        "Financial Year": display.financialYear || "",
+        "Division": display.division || "",
+        "State": display.state || "",
+        "Material Description": display.material || "",
+        "APR No.": display.aprNumber || "",
+        "Batch No.": display.batchNo || "",
+        "Sl. No.": display.slNo || "",
+        "Period": display.period || "",
+        "CATEGORY": display.category || "Not classified",
+        "UNIT RATE": display.unitRate || "",
+        "Pricing Heading": display.pricingHeading || "",
+        "Value / Amount / Text": display.value || "",
+        "Remarks": display.remarks || "",
+        "Approving Authority": display.approvingAuthority || "",
+        "Date of Approval": display.dateOfApproval || "",
+        "Ref. Note of Approval": display.refNoteOfApproval || "",
+        "Completed On": display.completedAt || "",
+        "Status": display.status || "Completed",
+        "Completed ID": display.completedId || row.id || "",
+      };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Reports");
+
+    const fileName = buildReportFileName();
+    XLSX.writeFile(wb, fileName);
+  } catch (err) {
+    console.error("Excel export failed:", err);
+    window.alert("Excel export failed. Please try again.");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Export to Excel";
+    }
+  }
+}
+
+function generatePrintPreviewFromCurrentReportState() {
+  return getCurrentVisibleReportRows();
 }
 
 function buildReportDrillDownTree(records) {
@@ -1199,6 +1512,7 @@ function renderPricingDataTable() {
 
       <div class="table-actions pricing-data-actions">
         <button type="button" class="add-row-btn" id="addPricingDataRowBtn">Add Row</button>
+        <button type="button" class="secondary-btn" id="applyFirstRowToAllBtn">Apply First Row to All Rows</button>
         <button type="button" class="secondary-btn" id="savePricingDataBtn">Save</button>
       </div>
 
@@ -1295,6 +1609,9 @@ function isBlankPricingDataRow(row) {
     row.batchNo,
     row.value,
     row.remarks,
+    row.approvingAuthority,
+    row.dateOfApproval,
+    row.refNoteOfApproval,
   ].every((value) => value === "" || value === undefined || value === null);
 }
 
@@ -1409,7 +1726,11 @@ function updateSavedPricingRow(rowId, field, value) {
 }
 
 function handleAddPricingDataRow() {
-  pricingDataRows = [...pricingDataRows, createPricingDataRow()];
+  const newRow = createPricingDataRow();
+  if (pricingDataRows.length > 0 && isFirstRowComplete()) {
+    copyFirstRowValuesToRow(pricingDataRows[0], newRow);
+  }
+  pricingDataRows = [...pricingDataRows, newRow];
   pricingDataValidationMessage = "";
   persistPricingDataState();
   renderPricingDataTable();
@@ -1422,37 +1743,97 @@ function handleDeletePricingDataRow(rowId) {
   if (pricingDataRows.length === 0) {
     pricingDataRows = [createPricingDataRow()];
   }
+  firstRowAutoCopied = false;
   pricingDataValidationMessage = "";
   persistPricingDataState();
   renderPricingDataTable();
 }
 
 function handleSavePricingDataRows() {
-  const validation = validatePricingDataRows();
-  if (!validation.valid) {
-    pricingDataValidationMessage = validation.message;
+  if (pricingDataRows.length === 0) {
+    pricingDataValidationMessage = "Please add at least one pricing record.";
     renderPricingDataTable();
     return;
   }
 
-  const rowsToSave = pricingDataRows.filter(isPricingDataRowComplete);
-  if (!rowsToSave.length) {
-    pricingDataValidationMessage = "Please complete at least one row before saving.";
+  if (!validatePricingDataBeforeSave()) {
+    pricingDataValidationMessage = "Please complete all required fields before saving.";
     renderPricingDataTable();
     return;
   }
 
-  const batchAprNumber = generateAprNumber(rowsToSave[0].financialYearId);
-  savedPricingRecords = [
-    ...savedPricingRecords,
-    ...rowsToSave.map((row, index) => ({ ...row, aprNumber: batchAprNumber, slNo: String(index + 1) })),
-  ];
+  const serverErrors = simulateServerSideValidation(pricingDataRows);
+  if (serverErrors.length) {
+    pricingDataValidationMessage = "Server validation failed. Please correct the highlighted fields.";
+    const container = document.querySelector(".entry-table-wrapper");
+    if (container) {
+      const tbody = container.querySelector("tbody");
+      if (tbody) {
+        const rows = tbody.querySelectorAll("tr");
+        serverErrors.forEach((err) => {
+          const row = rows[err.row - 1];
+          if (!row) return;
+          const fieldMeta = MASTER_FIELDS.find((f) => f.key === err.field);
+          if (!fieldMeta) return;
+          const field = row.querySelector(fieldMeta.selector);
+          if (field) showFieldError(field);
+        });
+        const firstErr = serverErrors[0];
+        const firstRow = rows[firstErr.row - 1];
+        if (firstRow) {
+          const firstFieldMeta = MASTER_FIELDS.find((f) => f.key === firstErr.field);
+          if (firstFieldMeta) {
+            const firstField = firstRow.querySelector(firstFieldMeta.selector);
+            if (firstField) {
+              firstField.focus();
+              firstField.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
+          }
+        }
+      }
+    }
+    renderPricingDataTable();
+    return;
+  }
 
-  const remainingRows = pricingDataRows.filter((row) => !isPricingDataRowComplete(row));
-  pricingDataRows = [...remainingRows, createPricingDataRow()];
-  pricingDataValidationMessage = `${rowsToSave.length} row${rowsToSave.length > 1 ? "s" : ""} saved successfully.`;
-  persistPricingDataState();
-  renderPricingDataTable();
+  const duplicateValidation = validatePricingDataRows();
+  if (!duplicateValidation.valid) {
+    pricingDataValidationMessage = duplicateValidation.message;
+    renderPricingDataTable();
+    return;
+  }
+
+  const allRowsComplete = pricingDataRows.every(isPricingDataRowComplete);
+  if (!allRowsComplete) {
+    pricingDataValidationMessage = "Please complete all fields in every row before saving.";
+    renderPricingDataTable();
+    return;
+  }
+
+  const saveBtn = document.getElementById("savePricingDataBtn");
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Saving...";
+  }
+
+  try {
+    const rowsToSave = [...pricingDataRows];
+    const batchAprNumber = generateAprNumber(rowsToSave[0].financialYearId);
+    savedPricingRecords = [
+      ...savedPricingRecords,
+      ...rowsToSave.map((row, index) => ({ ...row, aprNumber: batchAprNumber, slNo: String(index + 1) })),
+    ];
+
+    pricingDataRows = [createPricingDataRow()];
+    pricingDataValidationMessage = `${rowsToSave.length} row${rowsToSave.length !== 1 ? "s" : ""} saved successfully.`;
+    persistPricingDataState();
+    renderPricingDataTable();
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Save";
+    }
+  }
 }
 
 function handleCompleteSavedRows() {
@@ -1576,8 +1957,9 @@ function renderReportsPanel() {
         ${isAdminAuthenticated ? '<button type="button" class="secondary-btn" id="adminLogoutBtn">Logout Admin</button>' : ""}
         ${hasActiveFilters ? '<button type="button" class="secondary-btn" id="clearAllReportFiltersBtn">Clear All Filters</button>' : ""}
         <button type="button" class="secondary-btn" id="expandAllReportsBtn">Expand All</button>
-        <button type="button" class="secondary-btn" id="collapseAllReportsBtn">Collapse All</button>
-        <button type="button" class="secondary-btn" id="printPreviewBtn">Print Preview</button>
+         <button type="button" class="secondary-btn" id="collapseAllReportsBtn">Collapse All</button>
+         <button type="button" class="secondary-btn" id="printPreviewBtn">Print Preview</button>
+         <button type="button" class="secondary-btn" id="exportExcelBtn">Export to Excel</button>
       </div>
       <div class="table-wrapper saved-table-wrapper report-drill-wrapper">
         ${drillDownHtml}
@@ -2660,8 +3042,10 @@ masterDataPanel.addEventListener("click", (event) => {
       if (reportDrillDownExpanded.has(nodeId)) reportDrillDownExpanded.delete(nodeId); else reportDrillDownExpanded.add(nodeId);
       renderReportsPanel();
     } else if (target.id === "printPreviewBtn") {
-     openReportPrintPreview();
-   }
+      openReportPrintPreview();
+    } else if (target.id === "exportExcelBtn") {
+      exportCurrentReportToExcel();
+    }
  });
 
 masterDataPanel.addEventListener("click", (event) => {
@@ -2755,6 +3139,8 @@ masterDataPanel.addEventListener("click", (event) => {
     renderSavedPricingRecordsPanel();
   } else if (target.id === "addPricingDataRowBtn") {
     handleAddPricingDataRow();
+  } else if (target.id === "applyFirstRowToAllBtn") {
+    applyFirstRowToAllRows();
   } else if (target.id === "savePricingDataBtn") {
     handleSavePricingDataRows();
   } else if (target.matches("[data-action='edit']")) {
@@ -3215,6 +3601,12 @@ masterDataPanel.addEventListener("click", (event) => {
 });
 
 masterDataPanel.addEventListener("change", (event) => {
+  if (event.target.classList.contains("is-invalid")) {
+    event.target.classList.remove("is-invalid");
+    const errorElement = event.target.parentElement.querySelector(".validation-error");
+    if (errorElement) errorElement.remove();
+  }
+
   if (event.target.id === "selectAllSavedRows") {
     const filteredRecords = getFilteredSavedRecords();
     if (event.target.checked) {
@@ -3293,16 +3685,27 @@ masterDataPanel.addEventListener("change", (event) => {
   } else if (event.target.classList.contains("saved-gen-mkfed-pvt-select")) {
     updateSavedPricingRow(event.target.dataset.rowId, "category", event.target.value);
   }
+
+  if (pricingDataRows.length > 1) {
+    const wasComplete = firstRowAutoCopied;
+    const isNowComplete = isFirstRowComplete();
+    if (!isNowComplete) {
+      firstRowAutoCopied = false;
+    } else if (!wasComplete && isNowComplete) {
+      firstRowAutoCopied = true;
+      copyFirstRowValuesToAllRows();
+    }
+  }
 });
 
 masterDataPanel.addEventListener("input", (event) => {
-  if (event.target.classList.contains("report-period-input")) {
-    updateReportRecord(event.target.dataset.rowId, "period", event.target.value);
-  } else if (event.target.classList.contains("report-value-input")) {
-    updateReportRecord(event.target.dataset.rowId, "value", event.target.value);
-  } else if (event.target.classList.contains("report-remarks-input")) {
-    updateReportRecord(event.target.dataset.rowId, "remarks", event.target.value);
-  } else if (event.target.classList.contains("pricing-period-input")) {
+  if (event.target.classList.contains("is-invalid")) {
+    event.target.classList.remove("is-invalid");
+    const errorElement = event.target.parentElement.querySelector(".validation-error");
+    if (errorElement) errorElement.remove();
+  }
+
+  if (event.target.classList.contains("pricing-period-input")) {
     updatePricingDataRow(event.target.dataset.rowId, "period", event.target.value);
   } else if (event.target.classList.contains("pricing-batchno-input")) {
     updatePricingDataRow(event.target.dataset.rowId, "batchNo", event.target.value);
@@ -3339,6 +3742,17 @@ masterDataPanel.addEventListener("input", (event) => {
   } else if (event.target.classList.contains("saved-ref-note-input")) {
     updateSavedPricingRow(event.target.dataset.rowId, "refNoteOfApproval", event.target.value);
   }
+
+  if (pricingDataRows.length > 1) {
+    const wasComplete = firstRowAutoCopied;
+    const isNowComplete = isFirstRowComplete();
+    if (!isNowComplete) {
+      firstRowAutoCopied = false;
+    } else if (!wasComplete && isNowComplete) {
+      firstRowAutoCopied = true;
+      copyFirstRowValuesToAllRows();
+    }
+  }
 });
 
 document.addEventListener("click", (event) => {
@@ -3367,49 +3781,69 @@ document.addEventListener("click", (event) => {
 });
 
 function openReportPrintPreview() {
-  const filteredReports = getFilteredReportRecords();
-  if (!filteredReports.length) {
+  const visibleRows = generatePrintPreviewFromCurrentReportState();
+  if (!visibleRows.length) {
     window.alert("No records to preview.");
     return;
   }
 
-  const recordsPerPage = 15;
-  const totalPages = Math.max(1, Math.ceil(filteredReports.length / recordsPerPage));
+  const tree = buildReportDrillDownTree(getFilteredReportRecords());
+  const headerCells = REPORT_COLS.map((col) => `<th>${escapeHtml(col.label)}</th>`).join("");
 
-  function renderPage(pageNum) {
-    const start = (pageNum - 1) * recordsPerPage;
-    const pageRecords = filteredReports.slice(start, start + recordsPerPage);
-    const headerCells = REPORT_COLS.map((col) => `<th>${escapeHtml(col.label)}</th>`).join("");
-    const rows = pageRecords.map((row, idx) => {
-      const display = getReportRowDisplayValues(row, start + idx);
-      return `<tr>
-        <td>${escapeHtml(display.financialYear)}</td>
-        <td>${escapeHtml(display.division)}</td>
-        <td>${escapeHtml(display.state)}</td>
-        <td>${escapeHtml(display.material)}</td>
-        <td>${escapeHtml(display.aprNumber)}</td>
-        <td>${escapeHtml(display.batchNo)}</td>
-        <td>${escapeHtml(display.slNo)}</td>
-        <td>${escapeHtml(display.period)}</td>
-        <td>${escapeHtml(display.category || "Not classified")}</td>
-        <td>${escapeHtml(display.unitRate)}</td>
-        <td>${escapeHtml(display.pricingHeading)}</td>
-        <td>${escapeHtml(display.value)}</td>
-        <td>${escapeHtml(display.remarks)}</td>
-        <td>${escapeHtml(display.approvingAuthority)}</td>
-        <td>${escapeHtml(display.dateOfApproval)}</td>
-        <td>${escapeHtml(display.refNoteOfApproval)}</td>
-      </tr>`;
-    }).join("");
+  function renderNode(node, level) {
+    const isExpanded = reportDrillDownExpanded.has(node.id);
+    const hasChildren = node.children && node.children.length > 0;
+    const hasRecords = node.records && node.records.length > 0;
+    const indent = level * 24;
+    const recordLabel = node.count === 1 ? "Record" : "Records";
 
-    return `<div class="preview-page" data-page="${pageNum}">
-      <div class="preview-page-header">REPORTS - Page ${pageNum} of ${totalPages}</div>
-      <table class="master-data-table pricing-data-table preview-table">
-        <thead><tr>${headerCells}</tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>`;
+    if (!isExpanded && !hasRecords) return "";
+
+    const childHtml = isExpanded && hasChildren
+      ? node.children.map((child) => renderNode(child, level + 1)).join("")
+      : "";
+
+    const recordsHtml = isExpanded && hasRecords
+      ? (() => {
+          const rows = node.records.map((row, idx) => {
+            const display = getReportRowDisplayValues(row, idx);
+            return `<tr>
+              <td>${escapeHtml(display.financialYear)}</td>
+              <td>${escapeHtml(display.division)}</td>
+              <td>${escapeHtml(display.state)}</td>
+              <td>${escapeHtml(display.material)}</td>
+              <td>${escapeHtml(display.aprNumber)}</td>
+              <td>${escapeHtml(display.batchNo)}</td>
+              <td>${escapeHtml(display.slNo)}</td>
+              <td>${escapeHtml(display.period)}</td>
+              <td>${escapeHtml(display.category || "Not classified")}</td>
+              <td>${escapeHtml(display.unitRate)}</td>
+              <td>${escapeHtml(display.pricingHeading)}</td>
+              <td>${escapeHtml(display.value)}</td>
+              <td>${escapeHtml(display.remarks)}</td>
+              <td>${escapeHtml(display.approvingAuthority)}</td>
+              <td>${escapeHtml(display.dateOfApproval)}</td>
+              <td>${escapeHtml(display.refNoteOfApproval)}</td>
+            </tr>`;
+          }).join("");
+          return `<table class="master-data-table pricing-data-table preview-table">
+            <thead><tr>${headerCells}</tr></thead>
+            <tbody>${rows}</tbody>
+          </table>`;
+        })()
+      : "";
+
+    if (!childHtml && !recordsHtml) return "";
+
+    let html = `<div class="preview-node" style="margin-left:${indent}px;">`;
+    html += `<div class="preview-node-heading">${escapeHtml(node.label)} (${node.count} ${recordLabel})</div>`;
+    html += childHtml;
+    html += recordsHtml;
+    html += `</div>`;
+    return html;
   }
+
+  const contentHtml = tree.map((node) => renderNode(node, 0)).join("");
 
   const modal = document.createElement("div");
   modal.className = "report-print-preview-modal";
@@ -3422,13 +3856,15 @@ function openReportPrintPreview() {
         <button type="button" class="secondary-btn" id="previewZoomIn">Zoom +</button>
         <button type="button" class="secondary-btn" id="previewFitWidth">Fit Width</button>
         <button type="button" class="secondary-btn" id="previewFitPage">Fit Page</button>
-        <span class="preview-page-indicator" id="previewPageIndicator">Page 1 of ${totalPages}</span>
         <button type="button" class="add-row-btn" id="previewPrintBtn">Print</button>
         <button type="button" class="secondary-btn" id="previewCloseBtn">Close</button>
       </div>
       <div class="report-print-preview-scroll" id="previewScrollArea">
         <div class="report-print-preview-content" id="previewContent" style="transform: scale(${reportDrillDownZoom / 100}); transform-origin: top center;">
-          ${Array.from({ length: totalPages }, (_, i) => renderPage(i + 1)).join("")}
+          <div class="preview-page">
+            <div class="preview-page-header">REPORTS</div>
+            ${contentHtml}
+          </div>
         </div>
       </div>
     </div>
@@ -3438,7 +3874,6 @@ function openReportPrintPreview() {
 
   const scrollArea = modal.querySelector("#previewScrollArea");
   const content = modal.querySelector("#previewContent");
-  const pageIndicator = modal.querySelector("#previewPageIndicator");
 
   function updateZoom(newZoom) {
     reportDrillDownZoom = Math.min(200, Math.max(50, newZoom));
@@ -3472,15 +3907,6 @@ function openReportPrintPreview() {
   modal.querySelector(".report-print-preview-overlay").addEventListener("click", () => {
     modal.remove();
     document.body.style.overflow = "";
-  });
-
-  scrollArea.addEventListener("scroll", () => {
-    const scrollTop = scrollArea.scrollTop;
-    const pageHeight = content.firstElementChild.offsetHeight * (reportDrillDownZoom / 100);
-    if (pageHeight > 0) {
-      const currentPage = Math.min(totalPages, Math.max(1, Math.floor(scrollTop / pageHeight) + 1));
-      pageIndicator.textContent = `Page ${currentPage} of ${totalPages}`;
-    }
   });
 }
 
