@@ -886,43 +886,51 @@ function buildReportDrillDownTree(records) {
 
     let fyNode = fyMap.get(fy);
     if (!fyNode) {
-      fyNode = { id: `fy:${fy}`, label: fy, count: 0, children: [], records: [], aprNumbers: new Set(), divMap: new Map() };
+      fyNode = { id: `fy:${fy}`, label: fy, count: 0, children: [], records: [], divMap: new Map() };
       fyMap.set(fy, fyNode);
       tree.push(fyNode);
     }
 
     let divNode = fyNode.divMap.get(div);
     if (!divNode) {
-      divNode = { id: `fy:${fy}:div:${div}`, label: div, count: 0, children: [], records: [], aprNumbers: new Set(), stateMap: new Map() };
+      divNode = { id: `fy:${fy}:div:${div}`, label: div, count: 0, children: [], records: [], stateMap: new Map() };
       fyNode.divMap.set(div, divNode);
       fyNode.children.push(divNode);
     }
 
     let stateNode = divNode.stateMap.get(state);
     if (!stateNode) {
-      stateNode = { id: `fy:${fy}:div:${div}:state:${state}`, label: state, count: 0, children: [], records: [], aprNumbers: new Set(), matMap: new Map() };
+      stateNode = { id: `fy:${fy}:div:${div}:state:${state}`, label: state, count: 0, children: [], records: [], matMap: new Map() };
       divNode.stateMap.set(state, stateNode);
       divNode.children.push(stateNode);
     }
 
     let matNode = stateNode.matMap.get(mat);
     if (!matNode) {
-      matNode = { id: `fy:${fy}:div:${div}:state:${state}:mat:${mat}`, label: mat, count: 0, children: [], records: [], aprNumbers: new Set() };
+      matNode = { id: `fy:${fy}:div:${div}:state:${state}:mat:${mat}`, label: mat, count: 0, children: [], records: [], aprMap: new Map() };
       stateNode.matMap.set(mat, matNode);
       stateNode.children.push(matNode);
     }
 
-    matNode.records.push(row);
-    matNode.aprNumbers.add(apr);
-    stateNode.aprNumbers.add(apr);
-    divNode.aprNumbers.add(apr);
-    fyNode.aprNumbers.add(apr);
+    let aprNode = matNode.aprMap.get(apr);
+    if (!aprNode) {
+      aprNode = { id: `fy:${fy}:div:${div}:state:${state}:mat:${mat}:apr:${apr}`, label: apr, count: 0, children: [], records: [] };
+      matNode.aprMap.set(apr, aprNode);
+      matNode.children.push(aprNode);
+    }
+
+    aprNode.records.push(row);
   }
 
   function setCounts(node) {
-    node.count = node.aprNumbers.size;
-    for (const child of node.children) {
-      setCounts(child);
+    if (node.records.length > 0) {
+      node.count = node.records.length;
+    } else {
+      node.count = 0;
+      for (const child of node.children) {
+        setCounts(child);
+        node.count += child.count || 0;
+      }
     }
   }
 
@@ -2644,14 +2652,14 @@ masterDataPanel.addEventListener("click", (event) => {
       const tree = buildReportDrillDownTree(getFilteredReportRecords());
       addAllNodeIds(tree);
       renderReportsPanel();
-   } else if (target.id === "collapseAllReportsBtn") {
-     reportDrillDownExpanded.clear();
-     renderReportsPanel();
-   } else if (target.classList.contains("report-drill-toggle")) {
-     const nodeId = target.dataset.nodeId;
-     if (reportDrillDownExpanded.has(nodeId)) reportDrillDownExpanded.delete(nodeId); else reportDrillDownExpanded.add(nodeId);
-     renderReportsPanel();
-   } else if (target.id === "printPreviewBtn") {
+    } else if (target.id === "collapseAllReportsBtn") {
+      reportDrillDownExpanded.clear();
+      renderReportsPanel();
+    } else if (target.classList.contains("report-drill-toggle")) {
+      const nodeId = target.dataset.nodeId;
+      if (reportDrillDownExpanded.has(nodeId)) reportDrillDownExpanded.delete(nodeId); else reportDrillDownExpanded.add(nodeId);
+      renderReportsPanel();
+    } else if (target.id === "printPreviewBtn") {
      openReportPrintPreview();
    }
  });
