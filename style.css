@@ -186,6 +186,20 @@ body {
   font-size: 0.95rem;
 }
 
+.pricing-data-card .is-invalid,
+.pricing-data-card .pricing-field-error {
+  border: 2px solid #dc3545 !important;
+  background-color: #fff3f3 !important;
+}
+
+.pricing-data-card .validation-error,
+.pricing-data-card .pricing-validation-error {
+  display: block;
+  color: #dc3545;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
 .pricing-heading-form {
   display: flex;
   gap: 10px;
@@ -1383,7 +1397,7 @@ body.pricing-view-active footer {
 .mis-no-filter-msg { background: #fff7ed; border: 1px solid #fdba74; border-radius: 8px; padding: 12px 16px; color: #9a2c00; font-size: .9rem; flex-shrink: 0; }
 
 /* ── Reports Drill-Down ──────────────────────────────────────────────────── */
-.report-drill-wrapper { overflow-y: auto; overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; }
+.report-drill-wrapper { overflow-y: auto; overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; max-height: 60vh; min-height: 0; }
 .report-drill-node { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-bottom: 1px solid #f1f5f9; cursor: default; }
 .report-drill-node:hover { background: #f8fbff; }
 .report-drill-toggle { width: 20px; height: 20px; border-radius: 3px; background: var(--secondary); color: #fff; border: 0; padding: 0; cursor: pointer; display: grid; place-items: center; font-size: .8rem; font-weight: 700; flex-shrink: 0; }
@@ -1410,6 +1424,24 @@ body.pricing-view-active footer {
 .preview-table th { background: #003366; color: white; padding: 7px 8px; border: 1px solid #cbd5e1; text-align: left; font-weight: 700; vertical-align: middle; word-wrap: break-word; overflow-wrap: anywhere; }
 .preview-table td { padding: 6px 8px; border: 1px solid #cbd5e1; text-align: left; vertical-align: top; word-wrap: break-word; overflow-wrap: anywhere; white-space: pre-wrap; }
 .preview-table tbody tr:nth-child(even) { background: #f8fafc; }
+.preview-node { margin-bottom: 4px; }
+.preview-node-heading { font-weight: 700; color: #003366; font-size: 10pt; padding: 4px 0; border-bottom: 1px solid #dbe5f0; }
+
+@media print {
+  .hero, .nav, footer { display: none !important; }
+  body, .container, .master-data-panel, .master-data-card { overflow: visible !important; height: auto !important; }
+  .report-print-preview-modal { position: static !important; display: block !important; background: #fff !important; }
+  .report-print-preview-overlay, .report-print-preview-toolbar { display: none !important; }
+  .report-print-preview-container { width: 100% !important; height: auto !important; border-radius: 0 !important; box-shadow: none !important; display: block !important; overflow: visible !important; }
+  .report-print-preview-scroll { overflow: visible !important; padding: 0 !important; background: #fff !important; }
+  .report-print-preview-content { transform: none !important; display: block !important; }
+  .preview-page { width: 100% !important; min-height: auto !important; padding: 0 !important; box-shadow: none !important; }
+  .preview-page-header { text-align: left !important; margin-bottom: 8px !important; }
+  .preview-table { page-break-inside: auto; }
+  .preview-table thead { display: table-header-group; }
+  .preview-table tr { page-break-inside: avoid; }
+  @page { size: landscape; margin: 10mm; }
+}
 
 @media (max-width: 900px) {
   .report-print-preview-container { width: 100vw; height: 100vh; border-radius: 0; }
