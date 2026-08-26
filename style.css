@@ -532,6 +532,20 @@ body {
   background: #7c3aed;
 }
 
+.edit-pending-circular-btn {
+  background: #f59e0b;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.edit-pending-circular-btn:hover {
+  background: #d97706;
+}
+
 .btn-create {
   background: #2563eb;
   color: white;
