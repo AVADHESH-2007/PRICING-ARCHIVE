@@ -2323,24 +2323,35 @@ function generateAprNumber(financialYearId) {
   return `${prefix}${maxSeq + 1}`;
 }
 
+function isCircularAlreadyCreated(aprNumber) {
+  const checkStatus = getStoredValue("circularCheckStatus", {});
+  const status = checkStatus[aprNumber]?.status;
+  return status && status !== "draft";
+}
+
 function renderPrintCircularPanel() {
-  const completedRecords = completedPricingRecords;
+  const pendingRecords = completedPricingRecords.filter((r) => !isCircularAlreadyCreated(r.aprNumber));
 
   const getUniqueValues = (records, key) => [...new Set(records.map((r) => r[key]).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
 
-  const financialYears = getUniqueValues(completedRecords, "financialYearId");
+  const financialYears = getUniqueValues(pendingRecords, "financialYearId");
   const divisions = printCircularSelectedFinancialYear
-    ? getUniqueValues(completedRecords.filter((r) => r.financialYearId === printCircularSelectedFinancialYear), "division")
+    ? getUniqueValues(pendingRecords.filter((r) => r.financialYearId === printCircularSelectedFinancialYear), "division")
     : [];
   const states = printCircularSelectedFinancialYear && printCircularSelectedDivision
-    ? getUniqueValues(completedRecords.filter((r) => r.financialYearId === printCircularSelectedFinancialYear && r.division === printCircularSelectedDivision), "stateId")
+    ? getUniqueValues(pendingRecords.filter((r) => r.financialYearId === printCircularSelectedFinancialYear && r.division === printCircularSelectedDivision), "stateId")
     : [];
   const materials = printCircularSelectedFinancialYear && printCircularSelectedDivision && printCircularSelectedState
-    ? getUniqueValues(completedRecords.filter((r) => r.financialYearId === printCircularSelectedFinancialYear && r.division === printCircularSelectedDivision && r.stateId === printCircularSelectedState), "materialId")
+    ? getUniqueValues(pendingRecords.filter((r) => r.financialYearId === printCircularSelectedFinancialYear && r.division === printCircularSelectedDivision && r.stateId === printCircularSelectedState), "materialId")
     : [];
   const aprNumbers = printCircularSelectedFinancialYear && printCircularSelectedDivision && printCircularSelectedState && printCircularSelectedMaterial
-    ? getUniqueValues(completedRecords.filter((r) => r.financialYearId === printCircularSelectedFinancialYear && r.division === printCircularSelectedDivision && r.stateId === printCircularSelectedState && r.materialId === printCircularSelectedMaterial), "aprNumber")
+    ? getUniqueValues(pendingRecords.filter((r) => r.financialYearId === printCircularSelectedFinancialYear && r.division === printCircularSelectedDivision && r.stateId === printCircularSelectedState && r.materialId === printCircularSelectedMaterial), "aprNumber")
     : [];
+  const pendingAprNumbers = aprNumbers.filter((apr) => !isCircularAlreadyCreated(apr));
+
+  if (printCircularSelectedApr && !pendingAprNumbers.includes(printCircularSelectedApr)) {
+    printCircularSelectedApr = "";
+  }
 
   const financialYearOptions = financialYears.map((fy) => {
     const fyDisplay = financialYearEntries.find((e) => e.id === fy)?.year || fy;
@@ -2356,7 +2367,7 @@ function renderPrintCircularPanel() {
     const materialDisplay = masterDataEntries.find((e) => e.id === m)?.description || m;
     return `<option value="${escapeHtml(m)}" ${printCircularSelectedMaterial === m ? "selected" : ""}>${escapeHtml(materialDisplay)}</option>`;
   }).join("");
-  const aprOptions = aprNumbers.map((apr) => `<option value="${escapeHtml(apr)}" ${printCircularSelectedApr === apr ? "selected" : ""}>${escapeHtml(apr)}</option>`).join("");
+  const aprOptions = pendingAprNumbers.map((apr) => `<option value="${escapeHtml(apr)}" ${printCircularSelectedApr === apr ? "selected" : ""}>${escapeHtml(apr)}</option>`).join("");
 
   const filterHtml = `
     <div class="pricing-heading-form" style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px;">
@@ -2376,7 +2387,7 @@ function renderPrintCircularPanel() {
         <option value="">Select Material</option>
         ${materialOptions}
       </select>
-      <select id="printCircularAprSelect" ${aprNumbers.length ? "" : "disabled"}>
+      <select id="printCircularAprSelect" ${pendingAprNumbers.length ? "" : "disabled"}>
         <option value="">Select APR No.</option>
         ${aprOptions}
       </select>
@@ -2498,8 +2509,14 @@ function renderPrintCircularPanel() {
         </div>
          <div class="circular-page-footer">© ${new Date().getFullYear()} Pricing Data Portal | All Rights Reserved</div>
          <div class="table-actions pricing-data-actions" style="margin-top:12px">
-           <button type="button" class="btn-create" id="printCircularCreateBtn">Create Circular</button>
-           <button type="button" class="add-row-btn" id="printCircularPrintBtn">Print Circular</button>
+           ${selectedCircularForCheck && selectedCircularForCheck.checkerLevel === "approver_edit" ? `
+             <button type="button" class="btn-create" id="approverSaveEditBtn">Save/Update</button>
+             <button type="button" class="btn-approve" id="approverApproveBtn">Approve</button>
+             <button type="button" class="secondary-btn" id="cancelApproverEditBtn">Cancel</button>
+           ` : `
+             <button type="button" class="btn-create" id="printCircularCreateBtn">Create Circular</button>
+             <button type="button" class="add-row-btn" id="printCircularPrintBtn">Print Circular</button>
+           `}
           </div>
         ` : ""}
     </div>
@@ -2641,6 +2658,22 @@ function handleCreateCircular() {
   const introEditor = masterDataPanel.querySelector(".circular-intro-editor");
   const ccTextarea = masterDataPanel.querySelector(".circular-cc-textarea");
 
+  if (isCircularAlreadyCreated(printCircularSelectedApr)) {
+    if (isAdminAuthenticated) {
+      const confirmed = window.confirm("This circular has already been created and cannot be created again.\n\nAdministrator override is active. Do you want to proceed with re-creation?");
+      if (!confirmed) {
+        renderPrintCircularPanel();
+        return;
+      }
+    } else {
+      window.alert("This circular has already been created and cannot be created again. Administrator permission is required for any re-creation.");
+      renderPrintCircularPanel();
+      return;
+    }
+  }
+
+  const wasAdminOverride = isAdminAuthenticated && isCircularAlreadyCreated(printCircularSelectedApr);
+
   const draftData = {
     aprNumber: printCircularSelectedApr,
     financialYearId: printCircularSelectedFinancialYear,
@@ -2675,7 +2708,13 @@ function handleCreateCircular() {
   if (!auditTrail[printCircularSelectedApr]) {
     auditTrail[printCircularSelectedApr] = [];
   }
-  auditTrail[printCircularSelectedApr].push({ action: "created", level: "PREPARER", remarks: "Circular created and submitted to Checker-1", timestamp: new Date().toISOString() });
+  auditTrail[printCircularSelectedApr].push({ 
+    action: "created", 
+    level: "PREPARER", 
+    remarks: wasAdminOverride ? "Circular re-created by Administrator override" : "Circular created and submitted to Checker-1", 
+    timestamp: new Date().toISOString(),
+    adminOverride: wasAdminOverride || undefined
+  });
   setStoredValue("circularAuditTrail", auditTrail);
 
   window.alert("Circular created successfully and submitted to Checker-1 for checking.");
@@ -3696,6 +3735,12 @@ masterDataPanel.addEventListener("click", (event) => {
     handleAdminDeleteReport(target.dataset.id);
   } else if (target.id === "printCircularCreateBtn") {
     handleCreateCircular();
+  } else if (target.id === "approverSaveEditBtn") {
+    saveApproverEdit();
+  } else if (target.id === "approverApproveBtn") {
+    approveUpdatedCircular(printCircularSelectedApr);
+  } else if (target.id === "cancelApproverEditBtn") {
+    cancelApproverEdit();
   } else if (target.id === "printCircularPrintBtn") {
     if (!printCircularSelectedApr) {
       window.alert("Please select an APR No. before printing.");
@@ -4176,6 +4221,14 @@ masterDataPanel.addEventListener("click", (event) => {
     event.stopPropagation();
     const aprNumber = target.dataset.apr;
     viewCircularOnly(aprNumber);
+  } else if (target.classList.contains("edit-pending-circular-btn")) {
+    event.stopPropagation();
+    const aprNumber = target.dataset.apr;
+    openEditPendingCircular(aprNumber);
+  } else if (target.classList.contains("return-pending-circular-btn")) {
+    event.stopPropagation();
+    const aprNumber = target.dataset.apr;
+    openReturnForCorrection(aprNumber);
   } else if (target.classList.contains("approve-circular-btn")) {
     event.stopPropagation();
     const aprNumber = target.dataset.apr;
@@ -4355,6 +4408,10 @@ function viewCircularOnly(aprNumber) {
   const draft = circularDrafts.find((d) => d.aprNumber === aprNumber);
   if (!draft) return;
 
+  const checkStatus = getStoredValue("circularCheckStatus", {});
+  const status = checkStatus[aprNumber]?.status;
+  const canEdit = status === "ready_for_approval";
+
   printCircularSelectedApr = draft.aprNumber || "";
   printCircularSelectedFinancialYear = draft.financialYearId || "";
   printCircularSelectedDivision = draft.division || "";
@@ -4458,6 +4515,7 @@ function viewCircularOnly(aprNumber) {
       </div>
       <div class="circular-page-footer">© ${new Date().getFullYear()} Pricing Data Portal | All Rights Reserved</div>
       <div class="table-actions pricing-data-actions" style="margin-top:12px">
+        ${canEdit ? `<button type="button" class="secondary-btn edit-pending-circular-btn" data-apr="${escapeHtml(aprNumber)}">Edit</button>` : ""}
         <button type="button" class="secondary-btn" id="backToCheckCircularBtn">Back to Check Circular</button>
       </div>
     </div>
@@ -5075,6 +5133,188 @@ function signCircularDigital(aprNumber) {
 
 function handleDigitalSign(aprNumber) {
   signCircularDigital(aprNumber);
+}
+
+function openReturnForCorrection(aprNumber) {
+  const circularDrafts = getStoredValue("circularDrafts", []);
+  const draft = circularDrafts.find((d) => d.aprNumber === aprNumber);
+  if (!draft) return;
+
+  const remarks = window.prompt("Enter reason/remarks for returning this circular for correction:\n\nPlease provide detailed correction instructions.");
+  if (remarks === null) return;
+  if (!remarks.trim()) {
+    window.alert("Remarks are required when returning a circular for correction.");
+    return;
+  }
+
+  const checkStatus = getStoredValue("circularCheckStatus", {});
+  const auditTrail = getStoredValue("circularAuditTrail", {});
+
+  if (!checkStatus[aprNumber]) {
+    checkStatus[aprNumber] = { status: "draft", checker1: null, checker2: null };
+  }
+  if (!auditTrail[aprNumber]) {
+    auditTrail[aprNumber] = [];
+  }
+
+  checkStatus[aprNumber].status = "returned_for_correction";
+  checkStatus[aprNumber].returnedForCorrection = {
+    timestamp: new Date().toISOString(),
+    remarks: remarks.trim(),
+    level: "APPROVER"
+  };
+
+  auditTrail[aprNumber].push({
+    action: "returned",
+    level: "APPROVER",
+    remarks: remarks.trim(),
+    timestamp: new Date().toISOString(),
+    previousStatus: "ready_for_approval",
+    newStatus: "returned_for_correction"
+  });
+
+  setStoredValue("circularCheckStatus", checkStatus);
+  setStoredValue("circularAuditTrail", auditTrail);
+
+  window.alert("Circular returned for correction. The preparer will be notified to make the required corrections.");
+  renderApproveCircularPanel();
+}
+
+function openEditPendingCircular(aprNumber) {
+  const circularDrafts = getStoredValue("circularDrafts", []);
+  const draft = circularDrafts.find((d) => d.aprNumber === aprNumber);
+  if (!draft) return;
+
+  selectedCircularForCheck = { ...draft, checkerLevel: "approver_edit" };
+  currentCheckerLevel = "approver_edit";
+
+  printCircularSelectedApr = draft.aprNumber || "";
+  printCircularSelectedFinancialYear = draft.financialYearId || "";
+  printCircularSelectedDivision = draft.division || "";
+  printCircularSelectedState = draft.stateId || "";
+  printCircularSelectedMaterial = draft.materialId || "";
+  printCircularTermsHtml = draft.termsHtml || "";
+  printCircularIntroText = draft.introText || "";
+  printCircularSignatoryText = draft.signatoryText || printCircularSignatoryText;
+  printCircularCcText = draft.ccText || "";
+  printCircularDateOfCircular = draft.dateOfCircular || "";
+  printCircularEffectiveFrom = draft.effectiveFrom || "";
+
+  currentAppView = "print-circular";
+  document.body.classList.add("print-circular-active");
+  renderPrintCircularPanel();
+}
+
+function saveApproverEdit() {
+  if (!selectedCircularForCheck) return;
+
+  const aprNumber = selectedCircularForCheck.aprNumber;
+  const termsEditor = masterDataPanel.querySelector(".circular-terms-editor");
+  const introEditor = masterDataPanel.querySelector(".circular-intro-editor");
+  const signatoryTextarea = masterDataPanel.querySelector(".circular-signatory-textarea");
+  const ccTextarea = masterDataPanel.querySelector(".circular-cc-textarea");
+  const dateOfCircularInput = masterDataPanel.querySelector("#circularDateOfCircular");
+  const effectiveFromInput = masterDataPanel.querySelector("#circularEffectiveFrom");
+
+  if (!dateOfCircularInput || !dateOfCircularInput.value) {
+    window.alert("Please enter the Date of Circular before saving.");
+    return;
+  }
+  if (!effectiveFromInput || !effectiveFromInput.value) {
+    window.alert("Please enter the Effective From date before saving.");
+    return;
+  }
+  if (!signatoryTextarea || !signatoryTextarea.value.trim()) {
+    window.alert("Please enter the Signatory details before saving.");
+    return;
+  }
+
+  const circularDrafts = getStoredValue("circularDrafts", []);
+  const draftIndex = circularDrafts.findIndex((d) => d.aprNumber === aprNumber);
+  if (draftIndex >= 0) {
+    circularDrafts[draftIndex].termsHtml = termsEditor ? termsEditor.innerHTML : printCircularTermsHtml;
+    circularDrafts[draftIndex].introText = introEditor ? (introEditor.innerText || introEditor.textContent) : printCircularIntroText;
+    circularDrafts[draftIndex].signatoryText = signatoryTextarea ? signatoryTextarea.value : printCircularSignatoryText;
+    circularDrafts[draftIndex].ccText = ccTextarea ? ccTextarea.value : printCircularCcText;
+    circularDrafts[draftIndex].dateOfCircular = dateOfCircularInput ? dateOfCircularInput.value : printCircularDateOfCircular;
+    circularDrafts[draftIndex].effectiveFrom = effectiveFromInput ? effectiveFromInput.value : printCircularEffectiveFrom;
+    circularDrafts[draftIndex].lastEditedBy = "APPROVER";
+    circularDrafts[draftIndex].lastEditedAt = new Date().toISOString();
+  }
+  setStoredValue("circularDrafts", circularDrafts);
+
+  printCircularTermsHtml = termsEditor ? termsEditor.innerHTML : printCircularTermsHtml;
+  printCircularIntroText = introEditor ? (introEditor.innerText || introEditor.textContent) : printCircularIntroText;
+  printCircularSignatoryText = signatoryTextarea ? signatoryTextarea.value : printCircularSignatoryText;
+  printCircularCcText = ccTextarea ? ccTextarea.value : printCircularCcText;
+  printCircularDateOfCircular = dateOfCircularInput ? dateOfCircularInput.value : printCircularDateOfCircular;
+  printCircularEffectiveFrom = effectiveFromInput ? effectiveFromInput.value : printCircularEffectiveFrom;
+
+  const checkStatus = getStoredValue("circularCheckStatus", {});
+  const auditTrail = getStoredValue("circularAuditTrail", {});
+
+  if (!checkStatus[aprNumber]) {
+    checkStatus[aprNumber] = { status: "draft", checker1: null, checker2: null };
+  }
+  if (!auditTrail[aprNumber]) {
+    auditTrail[aprNumber] = [];
+  }
+
+  auditTrail[aprNumber].push({
+    action: "edited_by_approver",
+    level: "APPROVER",
+    remarks: "Circular edited by approver before approval",
+    timestamp: new Date().toISOString(),
+    editedFields: {
+      dateOfCircular: dateOfCircularInput ? dateOfCircularInput.value : "",
+      effectiveFrom: effectiveFromInput ? effectiveFromInput.value : "",
+      signatoryText: signatoryTextarea ? "[REDACTED]" : "",
+      introText: introEditor ? "[REDACTED]" : "",
+      termsHtml: termsEditor ? "[REDACTED]" : "",
+      ccText: ccTextarea ? "[REDACTED]" : ""
+    }
+  });
+
+  setStoredValue("circularCheckStatus", checkStatus);
+  setStoredValue("circularAuditTrail", auditTrail);
+
+  window.alert("Circular updated successfully. You can now approve the updated circular.");
+  renderPrintCircularPanel();
+}
+
+function cancelApproverEdit() {
+  selectedCircularForCheck = null;
+  currentCheckerLevel = null;
+  currentAppView = "approve-circular";
+  document.body.classList.remove("print-circular-active");
+  renderApproveCircularPanel();
+}
+
+function approveUpdatedCircular(aprNumber) {
+  const confirmed = window.confirm("Are you sure you want to approve this updated circular? This action cannot be undone.");
+  if (!confirmed) return;
+
+  const checkStatus = getStoredValue("circularCheckStatus", {});
+  const auditTrail = getStoredValue("circularAuditTrail", {});
+
+  if (!checkStatus[aprNumber]) {
+    checkStatus[aprNumber] = { status: "draft", checker1: null, checker2: null };
+  }
+  if (!auditTrail[aprNumber]) {
+    auditTrail[aprNumber] = [];
+  }
+
+  checkStatus[aprNumber].status = "final_approved";
+  checkStatus[aprNumber].finalApproval = { timestamp: new Date().toISOString() };
+  auditTrail[aprNumber].push({ action: "final_approved", level: "APPROVER", remarks: "Circular approved after editor approver changes", timestamp: new Date().toISOString() });
+
+  setStoredValue("circularCheckStatus", checkStatus);
+  setStoredValue("circularAuditTrail", auditTrail);
+
+  window.alert("Circular approved successfully. You can now sign the circular digitally.");
+  selectedCircularForCheck = null;
+  currentCheckerLevel = null;
+  renderApproveCircularPanel();
 }
 
 function openReturnedCorrection(aprNumber) {
@@ -5704,6 +5944,7 @@ function renderApproveCircularPanel() {
             <td>${getStatusBadge(status.status)}</td>
             <td>
               <button type="button" class="secondary-btn view-pending-circular-btn" data-apr="${escapeHtml(draft.aprNumber || "")}">View</button>
+              <button type="button" class="btn-return return-pending-circular-btn" data-apr="${escapeHtml(draft.aprNumber || "")}">Return for Correction</button>
               <button type="button" class="btn-approve approve-circular-btn" data-apr="${escapeHtml(draft.aprNumber || "")}">Approve</button>
               <button type="button" class="btn-sign sign-circular-btn" data-apr="${escapeHtml(draft.aprNumber || "")}" style="display:none;">Sign</button>
               <button type="button" class="add-row-btn print-pending-circular-btn" data-apr="${escapeHtml(draft.aprNumber || "")}" style="display:none;">Print</button>
