@@ -5117,7 +5117,7 @@ function openReturnedCorrection(aprNumber) {
         <h4>Preparer Correction</h4>
         <p>Please review the discrepancy and make necessary corrections in the Create Circular tab.</p>
         <div class="checker-action-buttons">
-          <button type="button" class="btn-resubmit" id="resubmitBtn">RESUBMIT FOR CHECKING</button>
+          <button type="button" class="btn-resubmit" id="resubmitBtn">RESUBMIT CIRCULAR</button>
           <button type="button" class="secondary-btn" id="backToCheckCircularBtn">Back to Check Circular</button>
         </div>
       </div>
@@ -5200,8 +5200,47 @@ function handleResubmit() {
 
   const aprNumber = selectedCircularForCheck.aprNumber;
 
+  const circularDrafts = getStoredValue("circularDrafts", []);
+  const draft = circularDrafts.find((d) => d.aprNumber === aprNumber);
+
+  if (!draft) {
+    window.alert("Circular draft not found. Please create the circular first.");
+    return;
+  }
+
+  if (!draft.financialYearId) {
+    window.alert("Please select a Financial Year before resubmitting.");
+    return;
+  }
+  if (!draft.division) {
+    window.alert("Please select a Division before resubmitting.");
+    return;
+  }
+  if (!draft.stateId) {
+    window.alert("Please select a State before resubmitting.");
+    return;
+  }
+  if (!draft.materialId) {
+    window.alert("Please select a Material Description before resubmitting.");
+    return;
+  }
+  if (!draft.dateOfCircular) {
+    window.alert("Please enter the Date of Circular before resubmitting.");
+    return;
+  }
+  if (!draft.effectiveFrom) {
+    window.alert("Please enter the Effective From date before resubmitting.");
+    return;
+  }
+  if (!draft.signatoryText || !draft.signatoryText.trim()) {
+    window.alert("Please enter the Signatory details before resubmitting.");
+    return;
+  }
+
   const checkStatus = getStoredValue("circularCheckStatus", {});
   const auditTrail = getStoredValue("circularAuditTrail", {});
+
+  const previousStatus = checkStatus[aprNumber]?.status || "returned_for_correction";
 
   if (!checkStatus[aprNumber]) {
     checkStatus[aprNumber] = { status: "draft", checker1: null, checker2: null };
@@ -5213,16 +5252,37 @@ function handleResubmit() {
 
   checkStatus[aprNumber].status = "checker1_pending";
   checkStatus[aprNumber].resubmitted = true;
-  auditTrail[aprNumber].push({ action: "resubmitted", level: "PREPARER", remarks: "Corrections made and resubmitted", timestamp: new Date().toISOString() });
+  checkStatus[aprNumber].resubmittedAt = new Date().toISOString();
+
+  auditTrail[aprNumber].push({
+    action: "resubmitted",
+    level: "PREPARER",
+    remarks: "Corrections made and resubmitted for checking",
+    timestamp: new Date().toISOString(),
+    previousStatus: previousStatus,
+    newStatus: "checker1_pending",
+    correctedData: {
+      financialYearId: draft.financialYearId || "",
+      division: draft.division || "",
+      stateId: draft.stateId || "",
+      materialId: draft.materialId || "",
+      dateOfCircular: draft.dateOfCircular || "",
+      effectiveFrom: draft.effectiveFrom || "",
+      signatoryText: draft.signatoryText ? "[REDACTED]" : "",
+      introText: draft.introText ? "[REDACTED]" : "",
+      termsHtml: draft.termsHtml ? "[REDACTED]" : "",
+      ccText: draft.ccText ? "[REDACTED]" : "",
+    }
+  });
 
   setStoredValue("circularCheckStatus", checkStatus);
   setStoredValue("circularAuditTrail", auditTrail);
 
-  alert("Circular resubmitted for checking. It will go through Checker-1 and Checker-2 again.");
+  window.alert("Circular resubmitted for checking. It will go through Checker-1 and Checker-2 again.");
   selectedCircularForCheck = null;
-  currentAppView = "print-circular";
-  document.body.classList.add("print-circular-active");
-  renderPrintCircularPanel();
+  currentAppView = "check-circular";
+  document.body.classList.remove("print-circular-active");
+  renderCheckCircularPanel();
 }
 
 masterDataPanel.addEventListener("change", (event) => {
