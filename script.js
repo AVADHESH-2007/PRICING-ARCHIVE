@@ -653,12 +653,12 @@ function buildEntryRowHtml(row, index) {
   const allowedPricingHeadings = getPricingHeadingEntriesForDivision(row.division || "");
   const pricingHeadingOptions = allowedPricingHeadings.length
     ? allowedPricingHeadings.map((entry) => `<option value="${entry.id}" ${entry.id === row.pricingHeadingId ? "selected" : ""}>${escapeHtml(entry.description)}</option>`).join("")
-    : `<option value="" ${!row.pricingHeadingId ? "selected" : ""}>${row.division ? "No matching pricing headings" : "Select division first"}</option>`;
+    : "";
 
   const allowedMaterials = getMaterialsForDivision(row.division || "");
   const materialOptions = allowedMaterials.length
     ? allowedMaterials.map((entry) => `<option value="${entry.id}" ${entry.id === row.materialId ? "selected" : ""}>${escapeHtml(entry.description)}</option>`).join("")
-    : `<option value="" ${!row.materialId ? "selected" : ""}>${row.division ? "No matching materials" : "Select division first"}</option>`;
+    : "";
 
   return `
     <tr>
@@ -1595,12 +1595,12 @@ function buildSavedRowHtml(row, index) {
     const allowedPricingHeadings = getPricingHeadingEntriesForDivision(row.division || "");
     const pricingHeadingOptions = allowedPricingHeadings.length
       ? allowedPricingHeadings.map((entry) => `<option value="${entry.id}" ${entry.id === row.pricingHeadingId ? "selected" : ""}>${escapeHtml(entry.description)}</option>`).join("")
-      : `<option value="" ${!row.pricingHeadingId ? "selected" : ""}>${row.division ? "No matching pricing headings" : "Select division first"}</option>`;
+      : "";
 
     const allowedMaterials = getMaterialsForDivision(row.division || "");
     const materialOptions = allowedMaterials.length
       ? allowedMaterials.map((entry) => `<option value="${entry.id}" ${entry.id === row.materialId ? "selected" : ""}>${escapeHtml(entry.description)}</option>`).join("")
-      : `<option value="" ${!row.materialId ? "selected" : ""}>${row.division ? "No matching materials" : "Select division first"}</option>`;
+      : "";
 
     return `
       <tr data-record-id="${row.id}">
