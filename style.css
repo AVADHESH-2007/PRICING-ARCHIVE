@@ -1059,6 +1059,10 @@ body.print-circular-active footer {
   .hero, .nav, footer {
     display: none !important;
   }
+  .pricing-data-actions,
+  .table-actions {
+    display: none !important;
+  }
   body, .container, .master-data-panel, .master-data-card {
     overflow: visible !important;
     height: auto !important;
