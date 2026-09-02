@@ -46,6 +46,7 @@ function setStoredValue(key, value) {
 
 let masterDataEntries = getStoredValue("masterDataEntries", []);
 let pricingHeadingEntries = getStoredValue("pricingHeadingEntries", []);
+let currentPricingHeadingCategory = "PRICING ENTRY HEADING-FERTILIZER";
 let stateNameEntries = getStoredValue("stateNameEntries", []);
 let financialYearEntries = getStoredValue("financialYearEntries", []);
 let unitRateEntries = getStoredValue("unitRateEntries", []);
@@ -95,10 +96,13 @@ let printCircularTermsHtml = "";
 let printCircularIntroText = "The following pricing and sales terms have been approved for details mentioned above.";
 let printCircularDateOfCircular = "";
 let printCircularEffectiveFrom = "";
+let draftCircularEditMode = false;
 let circularCheckStatus = {};
 let circularAuditTrail = {};
+let checkerActiveTab = "checker1";
 let currentCheckerLevel = "checker1";
 let selectedCircularForCheck = null;
+let navigationHistory = [];
 let reportDrillDownExpanded = new Set();
 let reportDrillDownZoom = 100;
 let approvedArchiveExpanded = new Set();
@@ -109,6 +113,25 @@ let databaseAvailable = false;
 
 function getApplicationState() {
   return { masterDataEntries, pricingHeadingEntries, stateNameEntries, financialYearEntries, unitRateEntries, categoryEntries, pricingDataRows, savedPricingRecords, completedPricingRecords, aprCounter, deletionAuditLog };
+}
+
+function setPricingMasterCategoryFromSelection(selectedValue) {
+  if (selectedValue === "pricing-fertilizer") {
+    currentMasterDataView = "pricing";
+    currentPricingHeadingCategory = "PRICING ENTRY HEADING-FERTILIZER";
+    return;
+  }
+  if (selectedValue === "pricing-ipd") {
+    currentMasterDataView = "pricing";
+    currentPricingHeadingCategory = "PRICING ENTRY HEADING-IPD";
+    return;
+  }
+  if (selectedValue === "pricing-tie-up") {
+    currentMasterDataView = "pricing";
+    currentPricingHeadingCategory = "PRICING ENTRY HEADING-TIE-UP";
+    return;
+  }
+  currentMasterDataView = selectedValue;
 }
 
 function applyApplicationState(state) {
@@ -221,7 +244,9 @@ function renderMasterDataTable() {
         <label for="masterDataModeSelect">Entry Type</label>
         <select id="masterDataModeSelect">
           <option value="material" ${currentMasterDataView === "material" ? "selected" : ""}>MATERIAL MASTER DATA ENTRY</option>
-          <option value="pricing" ${currentMasterDataView === "pricing" ? "selected" : ""}>PRICING HEADING ENTRY</option>
+          <option value="pricing-fertilizer" ${currentMasterDataView === "pricing" && currentPricingHeadingCategory === "PRICING ENTRY HEADING-FERTILIZER" ? "selected" : ""}>PRICING ENTRY HEADING-FERTILIZER</option>
+          <option value="pricing-ipd" ${currentMasterDataView === "pricing" && currentPricingHeadingCategory === "PRICING ENTRY HEADING-IPD" ? "selected" : ""}>PRICING ENTRY HEADING-IPD</option>
+          <option value="pricing-tie-up" ${currentMasterDataView === "pricing" && currentPricingHeadingCategory === "PRICING ENTRY HEADING-TIE-UP" ? "selected" : ""}>PRICING ENTRY HEADING-TIE-UP</option>
           <option value="state" ${currentMasterDataView === "state" ? "selected" : ""}>STATE NAME ENTRY</option>
           <option value="financial-year" ${currentMasterDataView === "financial-year" ? "selected" : ""}>FINANCIAL YEAR ENTRY</option>
           <option value="unit-rate" ${currentMasterDataView === "unit-rate" ? "selected" : ""}>UNIT RATE ENTRY</option>
@@ -301,7 +326,9 @@ function renderStateNameEntry() {
         <label for="masterDataModeSelect">Entry Type</label>
         <select id="masterDataModeSelect">
           <option value="material">MATERIAL MASTER DATA ENTRY</option>
-          <option value="pricing">PRICING HEADING ENTRY</option>
+          <option value="pricing-fertilizer">PRICING ENTRY HEADING-FERTILIZER</option>
+          <option value="pricing-ipd">PRICING ENTRY HEADING-IPD</option>
+          <option value="pricing-tie-up">PRICING ENTRY HEADING-TIE-UP</option>
           <option value="state" selected>STATE NAME ENTRY</option>
           <option value="financial-year">FINANCIAL YEAR ENTRY</option>
           <option value="unit-rate">UNIT RATE ENTRY</option>
@@ -364,7 +391,9 @@ function renderFinancialYearEntry() {
         <label for="masterDataModeSelect">Entry Type</label>
         <select id="masterDataModeSelect">
           <option value="material">MATERIAL MASTER DATA ENTRY</option>
-          <option value="pricing">PRICING HEADING ENTRY</option>
+          <option value="pricing-fertilizer">PRICING ENTRY HEADING-FERTILIZER</option>
+          <option value="pricing-ipd">PRICING ENTRY HEADING-IPD</option>
+          <option value="pricing-tie-up">PRICING ENTRY HEADING-TIE-UP</option>
           <option value="state">STATE NAME ENTRY</option>
           <option value="financial-year" selected>FINANCIAL YEAR ENTRY</option>
           <option value="unit-rate">UNIT RATE ENTRY</option>
@@ -427,7 +456,9 @@ function renderUnitRateEntry() {
         <label for="masterDataModeSelect">Entry Type</label>
         <select id="masterDataModeSelect">
           <option value="material">MATERIAL MASTER DATA ENTRY</option>
-          <option value="pricing">PRICING HEADING ENTRY</option>
+          <option value="pricing-fertilizer">PRICING ENTRY HEADING-FERTILIZER</option>
+          <option value="pricing-ipd">PRICING ENTRY HEADING-IPD</option>
+          <option value="pricing-tie-up">PRICING ENTRY HEADING-TIE-UP</option>
           <option value="state">STATE NAME ENTRY</option>
           <option value="financial-year">FINANCIAL YEAR ENTRY</option>
           <option value="unit-rate" selected>UNIT RATE ENTRY</option>
@@ -490,7 +521,9 @@ function renderCategoryEntry() {
         <label for="masterDataModeSelect">Entry Type</label>
         <select id="masterDataModeSelect">
           <option value="material">MATERIAL MASTER DATA ENTRY</option>
-          <option value="pricing">PRICING HEADING ENTRY</option>
+          <option value="pricing-fertilizer">PRICING ENTRY HEADING-FERTILIZER</option>
+          <option value="pricing-ipd">PRICING ENTRY HEADING-IPD</option>
+          <option value="pricing-tie-up">PRICING ENTRY HEADING-TIE-UP</option>
           <option value="state">STATE NAME ENTRY</option>
           <option value="financial-year">FINANCIAL YEAR ENTRY</option>
           <option value="unit-rate">UNIT RATE ENTRY</option>
@@ -546,6 +579,8 @@ function renderCategoryEntry() {
 function renderPricingHeadingEntry() {
   const entryToEdit = pricingHeadingEntries.find((entry) => entry.id === editingPricingHeadingId) || null;
   const canManage = isMasterDataAdministrator();
+  const activeCategory = normalizePricingHeadingCategory(currentPricingHeadingCategory);
+  const entriesForCategory = pricingHeadingEntries.filter((entry) => normalizePricingHeadingCategory(entry?.category || entry?.entryType || entry?.division || "PRICING ENTRY HEADING-FERTILIZER") === activeCategory);
 
   masterDataPanel.innerHTML = `
     <div class="master-data-card">
@@ -553,7 +588,9 @@ function renderPricingHeadingEntry() {
         <label for="masterDataModeSelect">Entry Type</label>
         <select id="masterDataModeSelect">
           <option value="material">MATERIAL MASTER DATA ENTRY</option>
-          <option value="pricing" selected>PRICING HEADING ENTRY</option>
+          <option value="pricing-fertilizer" ${activeCategory === "PRICING ENTRY HEADING-FERTILIZER" ? "selected" : ""}>PRICING ENTRY HEADING-FERTILIZER</option>
+          <option value="pricing-ipd" ${activeCategory === "PRICING ENTRY HEADING-IPD" ? "selected" : ""}>PRICING ENTRY HEADING-IPD</option>
+          <option value="pricing-tie-up" ${activeCategory === "PRICING ENTRY HEADING-TIE-UP" ? "selected" : ""}>PRICING ENTRY HEADING-TIE-UP</option>
           <option value="state">STATE NAME ENTRY</option>
           <option value="financial-year">FINANCIAL YEAR ENTRY</option>
           <option value="unit-rate">UNIT RATE ENTRY</option>
@@ -561,11 +598,16 @@ function renderPricingHeadingEntry() {
       </div>
 
       <div class="panel-heading">
-        <h2>PRICING HEADING ENTRY</h2>
+        <h2>${activeCategory}</h2>
       </div>
       ${buildMasterDataAccessControls()}
 
       ${canManage ? `<div class="pricing-heading-form">
+        <select id="pricingHeadingCategorySelect">
+          <option value="PRICING ENTRY HEADING-FERTILIZER" ${activeCategory === "PRICING ENTRY HEADING-FERTILIZER" ? "selected" : ""}>PRICING ENTRY HEADING-FERTILIZER</option>
+          <option value="PRICING ENTRY HEADING-IPD" ${activeCategory === "PRICING ENTRY HEADING-IPD" ? "selected" : ""}>PRICING ENTRY HEADING-IPD</option>
+          <option value="PRICING ENTRY HEADING-TIE-UP" ${activeCategory === "PRICING ENTRY HEADING-TIE-UP" ? "selected" : ""}>PRICING ENTRY HEADING-TIE-UP</option>
+        </select>
         <input id="pricingHeadingInput" type="text" value="${escapeHtml(entryToEdit?.description || "")}" placeholder="Enter pricing heading description" />
         <button type="button" class="add-row-btn" id="addPricingHeadingBtn">${entryToEdit ? "Save" : "Add"}</button>
         ${entryToEdit ? '<button type="button" class="secondary-btn" id="cancelPricingHeadingEditBtn">Cancel</button>' : ""}
@@ -577,17 +619,19 @@ function renderPricingHeadingEntry() {
           <thead>
             <tr>
               <th>Sl. No.</th>
+              <th>Entry Type</th>
               <th>Description</th>
               ${canManage ? "<th>Actions</th>" : ""}
             </tr>
           </thead>
           <tbody>
-            ${pricingHeadingEntries.length
-              ? pricingHeadingEntries
+            ${entriesForCategory.length
+              ? entriesForCategory
                   .map(
                     (entry, index) => `
                       <tr>
                         <td>${index + 1}</td>
+                        <td>${escapeHtml(normalizePricingHeadingCategory(entry?.category || entry?.entryType || entry?.division || activeCategory))}</td>
                         <td>${escapeHtml(entry.description)}</td>
                         ${canManage ? `<td class="entry-actions">
                           <button type="button" class="edit-btn" data-action="edit-pricing-heading" data-id="${entry.id}">Edit</button>
@@ -597,7 +641,7 @@ function renderPricingHeadingEntry() {
                     `
                   )
                   .join("")
-              : `<tr><td colspan="${canManage ? 3 : 2}" class="empty-state">No pricing heading descriptions added yet.</td></tr>`}
+              : `<tr><td colspan="${canManage ? 4 : 3}" class="empty-state">No pricing headings exist for ${escapeHtml(activeCategory)}.</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -606,18 +650,28 @@ function renderPricingHeadingEntry() {
 }
 
 function buildEntryRowHtml(row, index) {
+  const allowedPricingHeadings = getPricingHeadingEntriesForDivision(row.division || "");
+  const pricingHeadingOptions = allowedPricingHeadings.length
+    ? allowedPricingHeadings.map((entry) => `<option value="${entry.id}" ${entry.id === row.pricingHeadingId ? "selected" : ""}>${escapeHtml(entry.description)}</option>`).join("")
+    : `<option value="" ${!row.pricingHeadingId ? "selected" : ""}>${row.division ? "No matching pricing headings" : "Select division first"}</option>`;
+
+  const allowedMaterials = getMaterialsForDivision(row.division || "");
+  const materialOptions = allowedMaterials.length
+    ? allowedMaterials.map((entry) => `<option value="${entry.id}" ${entry.id === row.materialId ? "selected" : ""}>${escapeHtml(entry.description)}</option>`).join("")
+    : `<option value="" ${!row.materialId ? "selected" : ""}>${row.division ? "No matching materials" : "Select division first"}</option>`;
+
   return `
     <tr>
       <td><select class="pricing-financial-year-select" data-row-id="${row.id}" required><option value="">Select financial year</option>${financialYearEntries.map((e) => `<option value="${e.id}" ${e.id === row.financialYearId ? "selected" : ""}>${escapeHtml(e.year)}</option>`).join("")}</select></td>
       <td><select class="pricing-division-select" data-row-id="${row.id}" required><option value="">Select division</option><option value="FERTILIZER" ${row.division === "FERTILIZER" ? "selected" : ""}>FERTILIZER</option><option value="IPD" ${row.division === "IPD" ? "selected" : ""}>IPD</option><option value="TIE-UP" ${row.division === "TIE-UP" ? "selected" : ""}>TIE-UP</option></select></td>
       <td><select class="pricing-state-select" data-row-id="${row.id}" required><option value="">Select state</option>${stateNameEntries.map((e) => `<option value="${e.id}" ${e.id === row.stateId ? "selected" : ""}>${escapeHtml(e.name)}</option>`).join("")}</select></td>
-      <td><select class="pricing-material-select" data-row-id="${row.id}" required><option value="">Select material</option>${masterDataEntries.map((e) => `<option value="${e.id}" ${e.id === row.materialId ? "selected" : ""}>${escapeHtml(e.description)}</option>`).join("")}</select></td>
+      <td><select class="pricing-material-select" data-row-id="${row.id}" required><option value="">${row.division ? (allowedMaterials.length ? "Select material" : "No matching materials") : "Select division first"}</option>${materialOptions}</select></td>
       <td><input type="text" class="pricing-batchno-input" data-row-id="${row.id}" value="${escapeHtml(row.batchNo || "")}" placeholder="Enter batch no." required /></td>
       <td class="auto-slno-cell">${index + 1}</td>
       <td><textarea class="pricing-period-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter period" required>${escapeHtml(row.period)}</textarea></td>
       <td><select class="pricing-category-select" data-row-id="${row.id}" required><option value="">Select category</option>${categoryEntries.map((e) => `<option value="${escapeHtml(e.name)}" ${row.category === e.name ? "selected" : ""}>${escapeHtml(e.name)}</option>`).join("")}</select></td>
       <td><select class="pricing-unit-rate-select" data-row-id="${row.id}" required><option value="">Select unit rate</option>${unitRateEntries.map((e) => `<option value="${escapeHtml(e.name)}" ${row.unitRate === e.name ? "selected" : ""}>${escapeHtml(e.name)}</option>`).join("")}</select></td>
-      <td><select class="pricing-heading-select" data-row-id="${row.id}" required><option value="">Select pricing heading</option>${pricingHeadingEntries.map((e) => `<option value="${e.id}" ${e.id === row.pricingHeadingId ? "selected" : ""}>${escapeHtml(e.description)}</option>`).join("")}</select></td>
+      <td><select class="pricing-heading-select" data-row-id="${row.id}" required><option value="">${row.division ? (allowedPricingHeadings.length ? "Select pricing heading" : "No matching pricing headings") : "Select division first"}</option>${pricingHeadingOptions}</select></td>
       <td><textarea class="pricing-value-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter value, slabs, conditions, formulas, or text" required>${escapeHtml(row.value)}</textarea></td>
       <td><textarea class="pricing-remarks-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter remarks" required>${escapeHtml(row.remarks)}</textarea></td>
       <td><input type="text" class="pricing-approving-authority-input" data-row-id="${row.id}" value="${escapeHtml(row.approvingAuthority || "")}" placeholder="Enter approving authority" required /></td>
@@ -658,11 +712,100 @@ const MASTER_FIELDS = [
   { key: "period", label: "Period", selector: ".pricing-period-input", type: "text" },
   { key: "category", label: "Category", selector: ".pricing-category-select", type: "select" },
   { key: "unitRate", label: "Unit Rate", selector: ".pricing-unit-rate-select", type: "select" },
+  { key: "pricingHeadingId", label: "Pricing Heading", selector: ".pricing-heading-select", type: "select" },
   { key: "approvingAuthority", label: "Approving Authority", selector: ".pricing-approving-authority-input", type: "text" },
   { key: "dateOfApproval", label: "Date of Approval", selector: ".pricing-date-of-approval-input", type: "date" },
   { key: "refNoteOfApproval", label: "Ref. Note of Approval", selector: ".pricing-ref-note-input", type: "text" },
   { key: "remarks", label: "Remarks", selector: ".pricing-remarks-input", type: "text" },
 ];
+
+function normalizePricingHeadingCategory(category) {
+  const value = String(category || "").trim();
+  if (!value) return "PRICING ENTRY HEADING-FERTILIZER";
+  if (["PRICING ENTRY HEADING", "PRICING HEADING ENTRY", "PRICING ENTRY HEADING-FERTILIZER", "FERTILIZER"].includes(value)) return "PRICING ENTRY HEADING-FERTILIZER";
+  if (["PRICING ENTRY HEADING-IPD", "IPD"].includes(value)) return "PRICING ENTRY HEADING-IPD";
+  if (["PRICING ENTRY HEADING-TIE-UP", "TIE-UP", "TIE-UP PRODUCTS"].includes(value)) return "PRICING ENTRY HEADING-TIE-UP";
+  return "PRICING ENTRY HEADING-FERTILIZER";
+}
+
+function normalizeDivisionValue(division) {
+  const value = String(division || "").trim();
+  if (["FERTILIZER"].includes(value)) return "FERTILIZER";
+  if (["IPD"].includes(value)) return "IPD";
+  if (["TIE-UP", "TIE-UP PRODUCTS"].includes(value)) return "TIE-UP";
+  return value;
+}
+
+function getPricingHeadingCategoryForDivision(division) {
+  const normalized = normalizeDivisionValue(division);
+  if (normalized === "IPD") return "PRICING ENTRY HEADING-IPD";
+  if (normalized === "TIE-UP") return "PRICING ENTRY HEADING-TIE-UP";
+  return "PRICING ENTRY HEADING-FERTILIZER";
+}
+
+function getDivisionFromPricingHeadingCategory(category) {
+  const normalized = normalizePricingHeadingCategory(category);
+  if (normalized === "PRICING ENTRY HEADING-IPD") return "IPD";
+  if (normalized === "PRICING ENTRY HEADING-TIE-UP") return "TIE-UP";
+  return "FERTILIZER";
+}
+
+function normalizePricingHeadingEntries(entries) {
+  const safeEntries = Array.isArray(entries) ? entries : [];
+  const deduped = [];
+  const seen = new Set();
+
+  safeEntries.forEach((entry) => {
+    const description = String(entry?.description || "").trim();
+    if (!description) return;
+    const category = normalizePricingHeadingCategory(entry?.category || entry?.entryType || entry?.division || "PRICING ENTRY HEADING-FERTILIZER");
+    const dedupeKey = `${description.toLowerCase()}|${category}`;
+    if (seen.has(dedupeKey)) return;
+    seen.add(dedupeKey);
+    deduped.push({
+      ...entry,
+      description,
+      category,
+      division: getDivisionFromPricingHeadingCategory(category),
+    });
+  });
+
+  return deduped;
+}
+
+function getPricingHeadingEntriesForDivision(division) {
+  const normalizedDivision = normalizeDivisionValue(division);
+  const allowedCategory = getPricingHeadingCategoryForDivision(normalizedDivision);
+
+  if (!normalizedDivision) return [];
+
+  return pricingHeadingEntries.filter((entry) => {
+    const category = normalizePricingHeadingCategory(entry?.category || entry?.entryType || entry?.division || "PRICING ENTRY HEADING-FERTILIZER");
+    return category === allowedCategory;
+  });
+}
+
+function getMaterialsForDivision(division) {
+  const normalizedDivision = normalizeDivisionValue(division);
+  if (!normalizedDivision) return [];
+
+  return masterDataEntries.filter((entry) => normalizeDivisionValue(entry?.division || "") === normalizedDivision);
+}
+
+function isMaterialAllowedForDivision(division, materialId) {
+  if (!division || !materialId) return true;
+  const allowedMaterialIds = new Set(getMaterialsForDivision(division).map((entry) => String(entry.id)));
+  return allowedMaterialIds.has(String(materialId));
+}
+
+function getPricingHeadingOptionsHtml(division) {
+  const available = getPricingHeadingEntriesForDivision(division);
+  const placeholder = !division ? "Select division first" : "Select pricing heading";
+  return `
+    <option value="">${placeholder}</option>
+    ${available.map((entry) => `<option value="${entry.id}" ${entry.id === selectedPricingHeadingId ? "selected" : ""}>${escapeHtml(entry.description)}</option>`).join("")}
+  `;
+}
 
 function getMasterFieldValue(row, fieldName) {
   const value = row[fieldName];
@@ -789,6 +932,14 @@ function simulateServerSideValidation(rows) {
         errors.push({ row: rowIndex + 1, field: fieldMeta.key, message: `${fieldMeta.label} is not a valid date.` });
       }
     });
+
+    if (row.division && row.materialId && !isMaterialAllowedForDivision(row.division, row.materialId)) {
+      errors.push({ row: rowIndex + 1, field: "materialId", message: "Material Description does not belong to the selected Division." });
+    }
+
+    if (row.division && row.pricingHeadingId && !isPricingHeadingAllowedForDivision(row.division, row.pricingHeadingId)) {
+      errors.push({ row: rowIndex + 1, field: "pricingHeadingId", message: "Pricing Heading does not belong to the selected Division." });
+    }
   });
   return errors;
 }
@@ -1441,20 +1592,30 @@ function buildSavedRowHtml(row, index) {
   const slCell = `<td class="sl-no-cell"><input type="checkbox" class="saved-row-checkbox" data-row-id="${row.id}" ${isChecked ? "checked" : ""} /></td>`;
 
   if (isEditing) {
+    const allowedPricingHeadings = getPricingHeadingEntriesForDivision(row.division || "");
+    const pricingHeadingOptions = allowedPricingHeadings.length
+      ? allowedPricingHeadings.map((entry) => `<option value="${entry.id}" ${entry.id === row.pricingHeadingId ? "selected" : ""}>${escapeHtml(entry.description)}</option>`).join("")
+      : `<option value="" ${!row.pricingHeadingId ? "selected" : ""}>${row.division ? "No matching pricing headings" : "Select division first"}</option>`;
+
+    const allowedMaterials = getMaterialsForDivision(row.division || "");
+    const materialOptions = allowedMaterials.length
+      ? allowedMaterials.map((entry) => `<option value="${entry.id}" ${entry.id === row.materialId ? "selected" : ""}>${escapeHtml(entry.description)}</option>`).join("")
+      : `<option value="" ${!row.materialId ? "selected" : ""}>${row.division ? "No matching materials" : "Select division first"}</option>`;
+
     return `
       <tr data-record-id="${row.id}">
         ${slCell}
         <td><select class="saved-financial-year-select" data-row-id="${row.id}"><option value="">Select financial year</option>${financialYearEntries.map((e) => `<option value="${e.id}" ${e.id === row.financialYearId ? "selected" : ""}>${escapeHtml(e.year)}</option>`).join("")}</select></td>
         <td><select class="saved-division-select" data-row-id="${row.id}"><option value="">Select division</option><option value="FERTILIZER" ${row.division === "FERTILIZER" ? "selected" : ""}>FERTILIZER</option><option value="IPD" ${row.division === "IPD" ? "selected" : ""}>IPD</option><option value="TIE-UP" ${row.division === "TIE-UP" ? "selected" : ""}>TIE-UP</option></select></td>
         <td><select class="saved-state-select" data-row-id="${row.id}"><option value="">Select state</option>${stateNameEntries.map((e) => `<option value="${e.id}" ${e.id === row.stateId ? "selected" : ""}>${escapeHtml(e.name)}</option>`).join("")}</select></td>
-        <td><select class="saved-material-select" data-row-id="${row.id}"><option value="">Select material</option>${masterDataEntries.map((e) => `<option value="${e.id}" ${e.id === row.materialId ? "selected" : ""}>${escapeHtml(e.description)}</option>`).join("")}</select></td>
+        <td><select class="saved-material-select" data-row-id="${row.id}"><option value="">${row.division ? (allowedMaterials.length ? "Select material" : "No matching materials") : "Select division first"}</option>${materialOptions}</select></td>
         <td><input type="text" class="saved-apr-input" data-row-id="${row.id}" value="${escapeHtml(row.aprNumber || "")}" placeholder="Enter APR No." /></td>
         <td><input type="text" class="saved-batchno-input" data-row-id="${row.id}" value="${escapeHtml(row.batchNo || "")}" placeholder="Enter batch no." /></td>
         <td><input type="text" class="saved-slno-input" data-row-id="${row.id}" value="${escapeHtml(row.slNo || "")}" placeholder="Enter SL No." /></td>
         <td><textarea class="saved-period-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter period">${escapeHtml(row.period)}</textarea></td>
         <td><select class="saved-category-select" data-row-id="${row.id}"><option value="">Select category</option>${categoryEntries.map((e) => `<option value="${escapeHtml(e.name)}" ${row.category === e.name ? "selected" : ""}>${escapeHtml(e.name)}</option>`).join("")}</select></td>
         <td><input type="text" class="saved-unit-rate-input" data-row-id="${row.id}" value="${escapeHtml(row.unitRate || "")}" placeholder="Enter unit rate" /></td>
-        <td><select class="saved-heading-select" data-row-id="${row.id}"><option value="">Select pricing heading</option>${pricingHeadingEntries.map((e) => `<option value="${e.id}" ${e.id === row.pricingHeadingId ? "selected" : ""}>${escapeHtml(e.description)}</option>`).join("")}</select></td>
+        <td><select class="saved-heading-select" data-row-id="${row.id}"><option value="">${row.division ? (allowedPricingHeadings.length ? "Select pricing heading" : "No matching pricing headings") : "Select division first"}</option>${pricingHeadingOptions}</select></td>
         <td><textarea class="saved-value-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter value, slabs, conditions, formulas, or text">${escapeHtml(row.value)}</textarea></td>
         <td><textarea class="saved-remarks-input complex-value-editor compact-editor" data-row-id="${row.id}" rows="1" placeholder="Enter remarks">${escapeHtml(row.remarks)}</textarea></td>
         <td><input type="text" class="saved-approving-authority-input" data-row-id="${row.id}" value="${escapeHtml(row.approvingAuthority || "")}" placeholder="Enter approving authority" /></td>
@@ -1800,11 +1961,15 @@ function normalizePricingDataRows(rows) {
 
 function loadPersistedState() {
   masterDataEntries = getStoredValue("masterDataEntries", masterDataEntries);
-  pricingHeadingEntries = getStoredValue("pricingHeadingEntries", pricingHeadingEntries);
+  pricingHeadingEntries = normalizePricingHeadingEntries(getStoredValue("pricingHeadingEntries", pricingHeadingEntries));
   stateNameEntries = getStoredValue("stateNameEntries", stateNameEntries);
   financialYearEntries = getStoredValue("financialYearEntries", financialYearEntries);
   pricingDataRows = normalizePricingDataRows(getStoredValue("pricingDataRows", []));
-  savedPricingRecords = getStoredValue("savedPricingRecords", []);
+  savedPricingRecords = getStoredValue("savedPricingRecords", []).map((row) => ({
+    ...row,
+    division: normalizeDivisionValue(row.division),
+    pricingHeadingId: row.pricingHeadingId && !getPricingHeadingEntriesForDivision(row.division).some((entry) => entry.id === row.pricingHeadingId) ? "" : row.pricingHeadingId,
+  }));
   completedPricingRecords = getStoredValue("completedPricingRecords", []);
   aprCounter = Number(getStoredValue("aprCounter", 0)) || 0;
   deletionAuditLog = getStoredValue("deletionAuditLog", []);
@@ -1877,6 +2042,15 @@ function validatePricingDataRows() {
   return { valid: true, message: "" };
 }
 
+function isPricingHeadingAllowedForDivision(division, pricingHeadingId) {
+  if (!division || !pricingHeadingId) return true;
+  const heading = pricingHeadingEntries.find((entry) => entry.id === pricingHeadingId);
+  if (!heading) return false;
+  const allowedCategory = getPricingHeadingCategoryForDivision(normalizeDivisionValue(division));
+  const headingCategory = normalizePricingHeadingCategory(heading.category || heading.entryType || heading.division || "PRICING ENTRY HEADING-FERTILIZER");
+  return headingCategory === allowedCategory;
+}
+
 function validateSavedRow(row) {
   const validCategories = categoryEntries.map((e) => e.name);
   if (!validCategories.length) {
@@ -1894,6 +2068,12 @@ function validateSavedRow(row) {
   if (!row.materialId) missingFields.push("Material Description");
   if (!row.pricingHeadingId) missingFields.push("Pricing Heading");
   if (!String(row.value || "").trim()) missingFields.push("Value");
+  if (row.division && row.materialId && !isMaterialAllowedForDivision(row.division, row.materialId)) {
+    return { valid: false, message: `Material Description does not belong to the selected Division (${row.division}). Please select a valid material for this division.` };
+  }
+  if (row.division && row.pricingHeadingId && !isPricingHeadingAllowedForDivision(row.division, row.pricingHeadingId)) {
+    return { valid: false, message: `Pricing Heading does not belong to the selected Division (${row.division}). Please select a valid heading for this division.` };
+  }
   if (missingFields.length > 0) {
     return { valid: false, message: "Missing fields: " + missingFields.join(", ") };
   }
@@ -1904,7 +2084,28 @@ function updatePricingDataRow(rowId, field, value) {
   const row = pricingDataRows.find((item) => item.id === rowId);
   if (!row) return;
   row[field] = value;
-  pricingDataValidationMessage = "";
+
+  if (field === "division") {
+    const allowedHeadingIds = new Set(getPricingHeadingEntriesForDivision(value).map((entry) => String(entry.id)));
+    const allowedMaterialIds = new Set(getMaterialsForDivision(value).map((entry) => String(entry.id)));
+    row.pricingHeadingId = allowedHeadingIds.has(String(row.pricingHeadingId || "")) ? row.pricingHeadingId : "";
+    row.materialId = allowedMaterialIds.has(String(row.materialId || "")) ? row.materialId : "";
+    pricingDataValidationMessage = "";
+    persistPricingDataState();
+    renderPricingDataTable();
+    return;
+  }
+
+  if (field === "materialId" && row.division && row.materialId && !isMaterialAllowedForDivision(row.division, row.materialId)) {
+    row.materialId = "";
+    pricingDataValidationMessage = "Material Description was reset because it does not belong to the selected Division.";
+  } else if (field === "pricingHeadingId" && row.division && row.pricingHeadingId && !isPricingHeadingAllowedForDivision(row.division, row.pricingHeadingId)) {
+    row.pricingHeadingId = "";
+    pricingDataValidationMessage = "Pricing Heading was reset because it does not belong to the selected Division.";
+  } else {
+    pricingDataValidationMessage = "";
+  }
+
   persistPricingDataState();
 }
 
@@ -1912,6 +2113,21 @@ function updateSavedPricingRow(rowId, field, value) {
   const row = savedPricingRecords.find((item) => item.id === rowId);
   if (!row) return;
   row[field] = value;
+
+  if (field === "division") {
+    const allowedHeadingIds = new Set(getPricingHeadingEntriesForDivision(value).map((entry) => String(entry.id)));
+    const allowedMaterialIds = new Set(getMaterialsForDivision(value).map((entry) => String(entry.id)));
+    row.pricingHeadingId = allowedHeadingIds.has(String(row.pricingHeadingId || "")) ? row.pricingHeadingId : "";
+    row.materialId = allowedMaterialIds.has(String(row.materialId || "")) ? row.materialId : "";
+    persistPricingDataState();
+    renderSavedPricingRecordsPanel();
+    return;
+  }
+
+  if (field === "materialId" && row.division && row.materialId && !isMaterialAllowedForDivision(row.division, row.materialId)) {
+    row.materialId = "";
+  }
+
   persistPricingDataState();
 }
 
@@ -1982,6 +2198,13 @@ function handleSavePricingDataRows() {
         }
       }
     }
+    renderPricingDataTable();
+    return;
+  }
+
+  const mismatchRows = pricingDataRows.filter((row) => row.division && row.pricingHeadingId && !isPricingHeadingAllowedForDivision(row.division, row.pricingHeadingId));
+  if (mismatchRows.length) {
+    pricingDataValidationMessage = `Pricing Heading mismatch detected: one or more rows have a heading that does not belong to the selected Division. Please fix before saving.`;
     renderPricingDataTable();
     return;
   }
@@ -2323,84 +2546,152 @@ function generateAprNumber(financialYearId) {
   return `${prefix}${maxSeq + 1}`;
 }
 
+function getCircularDraftsList() {
+  return getStoredValue("circularDrafts", []).filter((draft) => draft && draft.aprNumber && (!draft.status || draft.status === "draft"));
+}
+
+function getCircularDraftRecord(aprNumber) {
+  return getCircularDraftsList().find((draft) => draft.aprNumber === aprNumber) || null;
+}
+
+function isCircularDraft(aprNumber) {
+  return Boolean(getCircularDraftRecord(aprNumber));
+}
+
 function isCircularAlreadyCreated(aprNumber) {
+  const circularDrafts = getStoredValue("circularDrafts", []);
+  const draftMatch = circularDrafts.find((draft) => draft.aprNumber === aprNumber && draft.status === "created");
+  if (draftMatch) return true;
+
   const checkStatus = getStoredValue("circularCheckStatus", {});
   const status = checkStatus[aprNumber]?.status;
-  return status && status !== "draft";
+  return Boolean(status) && status !== "draft";
+}
+
+function getCreateCircularCandidates() {
+  return completedPricingRecords.filter((r) => r.aprNumber && !isCircularAlreadyCreated(r.aprNumber) && !isCircularDraft(r.aprNumber));
+}
+
+function loadDraftCircularIntoForm(aprNumber) {
+  const draft = getCircularDraftRecord(aprNumber);
+  if (!draft) return;
+
+  printCircularSelectedApr = draft.aprNumber || "";
+  printCircularSelectedFinancialYear = draft.financialYearId || "";
+  printCircularSelectedDivision = draft.division || "";
+  printCircularSelectedState = draft.stateId || "";
+  printCircularSelectedMaterial = draft.materialId || "";
+  printCircularCcText = draft.ccText || "";
+  printCircularSignatoryText = draft.signatoryText || "Dy. General Manager (Fin.)\nAuthorized Signatory";
+  printCircularTermsHtml = draft.termsHtml || "";
+  printCircularIntroText = draft.introText || "The following pricing and sales terms have been approved for details mentioned above.";
+  printCircularDateOfCircular = draft.dateOfCircular || "";
+  printCircularEffectiveFrom = draft.effectiveFrom || "";
+  draftCircularEditMode = true;
 }
 
 function renderPrintCircularPanel() {
-  const pendingRecords = completedPricingRecords.filter((r) => !isCircularAlreadyCreated(r.aprNumber));
+  // Check if we're in EDIT MODE for a pending approval circular or checker-originated edit flow
+  const isEditMode = selectedCircularForCheck && (selectedCircularForCheck.checkerLevel === "approver_edit" || selectedCircularForCheck.editingFromChecker === true);
+  const isDraftEditMode = draftCircularEditMode && printCircularSelectedApr && isCircularDraft(printCircularSelectedApr);
 
-  const getUniqueValues = (records, key) => [...new Set(records.map((r) => r[key]).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+  let filterHtml = "";
+  let noAprMessage = "";
 
-  const financialYears = getUniqueValues(pendingRecords, "financialYearId");
-  const divisions = printCircularSelectedFinancialYear
-    ? getUniqueValues(pendingRecords.filter((r) => r.financialYearId === printCircularSelectedFinancialYear), "division")
-    : [];
-  const states = printCircularSelectedFinancialYear && printCircularSelectedDivision
-    ? getUniqueValues(pendingRecords.filter((r) => r.financialYearId === printCircularSelectedFinancialYear && r.division === printCircularSelectedDivision), "stateId")
-    : [];
-  const materials = printCircularSelectedFinancialYear && printCircularSelectedDivision && printCircularSelectedState
-    ? getUniqueValues(pendingRecords.filter((r) => r.financialYearId === printCircularSelectedFinancialYear && r.division === printCircularSelectedDivision && r.stateId === printCircularSelectedState), "materialId")
-    : [];
-  const aprNumbers = printCircularSelectedFinancialYear && printCircularSelectedDivision && printCircularSelectedState && printCircularSelectedMaterial
-    ? getUniqueValues(pendingRecords.filter((r) => r.financialYearId === printCircularSelectedFinancialYear && r.division === printCircularSelectedDivision && r.stateId === printCircularSelectedState && r.materialId === printCircularSelectedMaterial), "aprNumber")
-    : [];
-  const pendingAprNumbers = aprNumbers.filter((apr) => !isCircularAlreadyCreated(apr));
+  // Only show filters if NOT in edit mode
+  if (!isEditMode && !isDraftEditMode) {
+    const pendingRecords = getCreateCircularCandidates();
 
-  if (printCircularSelectedApr && !pendingAprNumbers.includes(printCircularSelectedApr)) {
-    printCircularSelectedApr = "";
+    const getUniqueValues = (records, key) => [...new Set(records.map((r) => r[key]).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+
+    const financialYears = getUniqueValues(pendingRecords, "financialYearId");
+    const divisions = printCircularSelectedFinancialYear
+      ? getUniqueValues(pendingRecords.filter((r) => r.financialYearId === printCircularSelectedFinancialYear), "division")
+      : [];
+    const states = printCircularSelectedFinancialYear && printCircularSelectedDivision
+      ? getUniqueValues(pendingRecords.filter((r) => r.financialYearId === printCircularSelectedFinancialYear && r.division === printCircularSelectedDivision), "stateId")
+      : [];
+    const materials = printCircularSelectedFinancialYear && printCircularSelectedDivision && printCircularSelectedState
+      ? getUniqueValues(pendingRecords.filter((r) => r.financialYearId === printCircularSelectedFinancialYear && r.division === printCircularSelectedDivision && r.stateId === printCircularSelectedState), "materialId")
+      : [];
+    const aprNumbers = printCircularSelectedFinancialYear && printCircularSelectedDivision && printCircularSelectedState && printCircularSelectedMaterial
+      ? getUniqueValues(pendingRecords.filter((r) => r.financialYearId === printCircularSelectedFinancialYear && r.division === printCircularSelectedDivision && r.stateId === printCircularSelectedState && r.materialId === printCircularSelectedMaterial), "aprNumber")
+      : [];
+    const pendingAprNumbers = aprNumbers.filter((apr) => !isCircularAlreadyCreated(apr) && !isCircularDraft(apr));
+
+    if (printCircularSelectedApr && !pendingAprNumbers.includes(printCircularSelectedApr)) {
+      printCircularSelectedApr = "";
+    }
+
+    const financialYearOptions = financialYears.map((fy) => {
+      const fyDisplay = financialYearEntries.find((e) => e.id === fy)?.year || fy;
+      return `<option value="${escapeHtml(fy)}" ${printCircularSelectedFinancialYear === fy ? "selected" : ""}>${escapeHtml(fyDisplay)}</option>`;
+    }).join("");
+
+    const divisionOptions = divisions.map((d) => `<option value="${escapeHtml(d)}" ${printCircularSelectedDivision === d ? "selected" : ""}>${escapeHtml(d)}</option>`).join("");
+    const stateOptions = states.map((s) => {
+      const stateDisplay = stateNameEntries.find((e) => e.id === s)?.name || s;
+      return `<option value="${escapeHtml(s)}" ${printCircularSelectedState === s ? "selected" : ""}>${escapeHtml(stateDisplay)}</option>`;
+    }).join("");
+    const materialOptions = materials.map((m) => {
+      const materialDisplay = masterDataEntries.find((e) => e.id === m)?.description || m;
+      return `<option value="${escapeHtml(m)}" ${printCircularSelectedMaterial === m ? "selected" : ""}>${escapeHtml(materialDisplay)}</option>`;
+    }).join("");
+    const aprOptions = pendingAprNumbers.map((apr) => `<option value="${escapeHtml(apr)}" ${printCircularSelectedApr === apr ? "selected" : ""}>${escapeHtml(apr)}</option>`).join("");
+    const draftCirculars = getCircularDraftsList();
+    const draftOptions = draftCirculars.map((draft) => `<option value="${escapeHtml(draft.aprNumber || "")}" ${printCircularSelectedApr === draft.aprNumber ? "selected" : ""}>${escapeHtml(draft.aprNumber || "")}</option>`).join("");
+
+    filterHtml = `
+      <div class="pricing-heading-form" style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px;">
+        <select id="printCircularFinancialYearSelect" ${financialYears.length ? "" : "disabled"}>
+          <option value="">Select Financial Year</option>
+          ${financialYearOptions}
+        </select>
+        <select id="printCircularDivisionSelect" ${divisions.length ? "" : "disabled"}>
+          <option value="">Select Division</option>
+          ${divisionOptions}
+        </select>
+        <select id="printCircularStateSelect" ${states.length ? "" : "disabled"}>
+          <option value="">Select State</option>
+          ${stateOptions}
+        </select>
+        <select id="printCircularMaterialSelect" ${materials.length ? "" : "disabled"}>
+          <option value="">Select Material</option>
+          ${materialOptions}
+        </select>
+        <select id="printCircularAprSelect" ${pendingAprNumbers.length ? "" : "disabled"}>
+          <option value="">Select APR No.</option>
+          ${aprOptions}
+        </select>
+      </div>
+      <div class="pricing-heading-form" style="display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:12px;">
+        <label for="draftCircularSelect" style="font-weight:600;">DRAFT CIRCULARS</label>
+        <select id="draftCircularSelect">
+          <option value="">Select Draft Circular</option>
+          ${draftOptions}
+        </select>
+      </div>`;
+
+    noAprMessage = !printCircularSelectedApr
+      ? `<div class="empty-state" style="padding:40px 20px;font-size:1.1rem">Please select all filters and APR No. to generate the Pricing Circular.</div>`
+      : "";
+  } else if (!isEditMode && isDraftEditMode) {
+    const draftCirculars = getCircularDraftsList();
+    const draftOptions = draftCirculars.map((draft) => `<option value="${escapeHtml(draft.aprNumber || "")}" ${printCircularSelectedApr === draft.aprNumber ? "selected" : ""}>${escapeHtml(draft.aprNumber || "")}</option>`).join("");
+    filterHtml = `
+      <div class="pricing-heading-form" style="display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:12px;">
+        <label for="draftCircularSelect" style="font-weight:600;">DRAFT CIRCULARS</label>
+        <select id="draftCircularSelect">
+          <option value="">Select Draft Circular</option>
+          ${draftOptions}
+        </select>
+      </div>`;
   }
-
-  const financialYearOptions = financialYears.map((fy) => {
-    const fyDisplay = financialYearEntries.find((e) => e.id === fy)?.year || fy;
-    return `<option value="${escapeHtml(fy)}" ${printCircularSelectedFinancialYear === fy ? "selected" : ""}>${escapeHtml(fyDisplay)}</option>`;
-  }).join("");
-
-  const divisionOptions = divisions.map((d) => `<option value="${escapeHtml(d)}" ${printCircularSelectedDivision === d ? "selected" : ""}>${escapeHtml(d)}</option>`).join("");
-  const stateOptions = states.map((s) => {
-    const stateDisplay = stateNameEntries.find((e) => e.id === s)?.name || s;
-    return `<option value="${escapeHtml(s)}" ${printCircularSelectedState === s ? "selected" : ""}>${escapeHtml(stateDisplay)}</option>`;
-  }).join("");
-  const materialOptions = materials.map((m) => {
-    const materialDisplay = masterDataEntries.find((e) => e.id === m)?.description || m;
-    return `<option value="${escapeHtml(m)}" ${printCircularSelectedMaterial === m ? "selected" : ""}>${escapeHtml(materialDisplay)}</option>`;
-  }).join("");
-  const aprOptions = pendingAprNumbers.map((apr) => `<option value="${escapeHtml(apr)}" ${printCircularSelectedApr === apr ? "selected" : ""}>${escapeHtml(apr)}</option>`).join("");
-
-  const filterHtml = `
-    <div class="pricing-heading-form" style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px;">
-      <select id="printCircularFinancialYearSelect" ${financialYears.length ? "" : "disabled"}>
-        <option value="">Select Financial Year</option>
-        ${financialYearOptions}
-      </select>
-      <select id="printCircularDivisionSelect" ${divisions.length ? "" : "disabled"}>
-        <option value="">Select Division</option>
-        ${divisionOptions}
-      </select>
-      <select id="printCircularStateSelect" ${states.length ? "" : "disabled"}>
-        <option value="">Select State</option>
-        ${stateOptions}
-      </select>
-      <select id="printCircularMaterialSelect" ${materials.length ? "" : "disabled"}>
-        <option value="">Select Material</option>
-        ${materialOptions}
-      </select>
-      <select id="printCircularAprSelect" ${pendingAprNumbers.length ? "" : "disabled"}>
-        <option value="">Select APR No.</option>
-        ${aprOptions}
-      </select>
-    </div>`;
 
   const selectedAprRecords = printCircularSelectedApr
     ? completedPricingRecords.filter((r) => r.aprNumber === printCircularSelectedApr)
     : [];
   const records = selectedAprRecords.map((row, index) => getReportRowDisplayValues(row, index));
-
-  const noAprMessage = !printCircularSelectedApr
-    ? `<div class="empty-state" style="padding:40px 20px;font-size:1.1rem">Please select all filters and APR No. to generate the Pricing Circular.</div>`
-    : "";
 
   let circularHeader = "";
   if (selectedAprRecords.length > 0) {
@@ -2476,11 +2767,16 @@ function renderPrintCircularPanel() {
       `).join("")
     : "";
 
+  const isCheckerEditMode = selectedCircularForCheck && selectedCircularForCheck.editingFromChecker === true;
+  const isReturnedCorrectionEditMode = selectedCircularForCheck && selectedCircularForCheck.checkerLevel === "preparer" && selectedCircularForCheck.fromReturnedCorrection === true && selectedCircularForCheck.editingFromChecker === true;
+  const pageTitle = isEditMode ? "EDIT CIRCULAR" : isReturnedCorrectionEditMode ? "EDIT CIRCULAR" : isCheckerEditMode ? "EDIT CIRCULAR" : isDraftEditMode ? "EDIT DRAFT CIRCULAR" : "CREATE CIRCULAR";
+  const pageSubtitle = isEditMode ? `Editing APR No.: ${escapeHtml(printCircularSelectedApr)}` : isReturnedCorrectionEditMode ? `Editing APR No.: ${escapeHtml(printCircularSelectedApr)} for returned-correction review` : isCheckerEditMode ? `Editing APR No.: ${escapeHtml(printCircularSelectedApr)} for ${escapeHtml(currentCheckerLevel === "checker1" ? "Checker-1" : "Checker-2")}` : isDraftEditMode ? `Editing Draft APR No.: ${escapeHtml(printCircularSelectedApr)}` : "Select filters and APR No. to generate the pricing circular.";
+
   masterDataPanel.innerHTML = `
     <div class="master-data-card pricing-data-card print-circular-card">
       <div class="panel-heading">
-        <h2>CREATE CIRCULAR</h2>
-        <p>Select filters and APR No. to generate the pricing circular.</p>
+        <h2>${pageTitle}</h2>
+        <p>${pageSubtitle}</p>
       </div>
       ${filterHtml}
       ${noAprMessage}
@@ -2502,25 +2798,102 @@ function renderPrintCircularPanel() {
         <div style="text-align: right; margin-top: 20px;">
           <textarea class="circular-signatory-textarea" placeholder="Enter signatory details">${escapeHtml(printCircularSignatoryText || "")}</textarea>
         </div>
-       <div style="text-align: left; margin-top: 10px;">To State Incharge (Mkting) / State Finance Incharge</div>
+      <div style="text-align: left; margin-top: 10px;">To State Incharge (Mktg.) / State Finance Incharge</div>
         <div class="circular-cc">
           <div class="circular-cc-label">CC To</div>
           <textarea class="circular-cc-textarea" placeholder="Enter Name / Designation / Department / Address">${escapeHtml(printCircularCcText || "")}</textarea>
         </div>
          <div class="circular-page-footer">© ${new Date().getFullYear()} Pricing Data Portal | All Rights Reserved</div>
          <div class="table-actions pricing-data-actions" style="margin-top:12px">
-           ${selectedCircularForCheck && selectedCircularForCheck.checkerLevel === "approver_edit" ? `
+           ${isEditMode && !isCheckerEditMode ? `
              <button type="button" class="btn-create" id="approverSaveEditBtn">Save/Update</button>
              <button type="button" class="btn-approve" id="approverApproveBtn">Approve</button>
              <button type="button" class="secondary-btn" id="cancelApproverEditBtn">Cancel</button>
+           ` : isReturnedCorrectionEditMode ? `
+             <button type="button" class="btn-create" id="returnedCircularSaveBtn">SAVE</button>
+             <button type="button" class="secondary-btn" id="returnedCircularBackBtn">BACK</button>
+           ` : isCheckerEditMode ? `
+             <button type="button" class="btn-create" id="checkerEditSaveBtn">Save/Update</button>
+             <button type="button" class="secondary-btn" id="backToCheckCircularBtn">BACK</button>
+             <button type="button" class="btn-pass" id="checkerEditPassBtn">CHECKED & PASSED</button>
            ` : `
              <button type="button" class="btn-create" id="printCircularCreateBtn">Create Circular</button>
+             <button type="button" class="add-row-btn" id="printCircularSaveDraftBtn">${isDraftEditMode ? "Save Draft / Update Draft" : "Save Draft"}</button>
              <button type="button" class="add-row-btn" id="printCircularPrintBtn">Print Circular</button>
+             ${isDraftEditMode ? '<button type="button" class="secondary-btn" id="cancelDraftCircularEditBtn">Cancel</button>' : ""}
            `}
           </div>
         ` : ""}
     </div>
   `;
+
+  // Add event listeners for select filters only in CREATE mode
+  if (!isEditMode) {
+    const fySelect = masterDataPanel.querySelector("#printCircularFinancialYearSelect");
+    if (fySelect) {
+      fySelect.addEventListener("change", () => {
+        printCircularSelectedFinancialYear = fySelect.value;
+        printCircularSelectedDivision = "";
+        printCircularSelectedState = "";
+        printCircularSelectedMaterial = "";
+        printCircularSelectedApr = "";
+        renderPrintCircularPanel();
+      });
+    }
+
+    const divSelect = masterDataPanel.querySelector("#printCircularDivisionSelect");
+    if (divSelect) {
+      divSelect.addEventListener("change", () => {
+        printCircularSelectedDivision = divSelect.value;
+        printCircularSelectedState = "";
+        printCircularSelectedMaterial = "";
+        printCircularSelectedApr = "";
+        renderPrintCircularPanel();
+      });
+    }
+
+    const stateSelect = masterDataPanel.querySelector("#printCircularStateSelect");
+    if (stateSelect) {
+      stateSelect.addEventListener("change", () => {
+        printCircularSelectedState = stateSelect.value;
+        printCircularSelectedMaterial = "";
+        printCircularSelectedApr = "";
+        renderPrintCircularPanel();
+      });
+    }
+
+    const materialSelect = masterDataPanel.querySelector("#printCircularMaterialSelect");
+    if (materialSelect) {
+      materialSelect.addEventListener("change", () => {
+        printCircularSelectedMaterial = materialSelect.value;
+        printCircularSelectedApr = "";
+        renderPrintCircularPanel();
+      });
+    }
+
+    const aprSelect = masterDataPanel.querySelector("#printCircularAprSelect");
+    if (aprSelect) {
+      aprSelect.addEventListener("change", () => {
+        printCircularSelectedApr = aprSelect.value;
+        renderPrintCircularPanel();
+      });
+    }
+
+    const draftSelect = masterDataPanel.querySelector("#draftCircularSelect");
+    if (draftSelect) {
+      draftSelect.addEventListener("change", () => {
+        const selectedDraftApr = draftSelect.value;
+        if (!selectedDraftApr) {
+          draftCircularEditMode = false;
+          printCircularSelectedApr = "";
+          renderPrintCircularPanel();
+          return;
+        }
+        loadDraftCircularIntoForm(selectedDraftApr);
+        renderPrintCircularPanel();
+      });
+    }
+  }
   const signatoryTextarea = masterDataPanel.querySelector(".circular-signatory-textarea");
   if (signatoryTextarea) {
     signatoryTextarea.style.height = "auto";
@@ -2610,6 +2983,58 @@ function renderPrintCircularPanel() {
   }
 }
 
+function handleSaveDraftCircular() {
+  if (!printCircularSelectedApr) {
+    window.alert("Please select an APR No. before saving the draft.");
+    return;
+  }
+
+  const termsEditor = masterDataPanel.querySelector(".circular-terms-editor");
+  const introEditor = masterDataPanel.querySelector(".circular-intro-editor");
+  const signatoryTextarea = masterDataPanel.querySelector(".circular-signatory-textarea");
+  const ccTextarea = masterDataPanel.querySelector(".circular-cc-textarea");
+  const dateOfCircularInput = masterDataPanel.querySelector("#circularDateOfCircular");
+  const effectiveFromInput = masterDataPanel.querySelector("#circularEffectiveFrom");
+
+  const draftRecord = getCircularDraftRecord(printCircularSelectedApr);
+  const draftData = {
+    aprNumber: printCircularSelectedApr,
+    financialYearId: printCircularSelectedFinancialYear || draftRecord?.financialYearId || "",
+    division: printCircularSelectedDivision || draftRecord?.division || "",
+    stateId: printCircularSelectedState || draftRecord?.stateId || "",
+    materialId: printCircularSelectedMaterial || draftRecord?.materialId || "",
+    termsHtml: termsEditor ? termsEditor.innerHTML : (draftRecord?.termsHtml || printCircularTermsHtml),
+    introText: introEditor ? (introEditor.innerText || introEditor.textContent) : (draftRecord?.introText || printCircularIntroText),
+    signatoryText: signatoryTextarea ? signatoryTextarea.value : (draftRecord?.signatoryText || printCircularSignatoryText),
+    ccText: ccTextarea ? ccTextarea.value : (draftRecord?.ccText || printCircularCcText),
+    dateOfCircular: dateOfCircularInput ? dateOfCircularInput.value : (draftRecord?.dateOfCircular || printCircularDateOfCircular),
+    effectiveFrom: effectiveFromInput ? effectiveFromInput.value : (draftRecord?.effectiveFrom || printCircularEffectiveFrom),
+    status: "draft",
+    createdAt: draftRecord?.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  const circularDrafts = getStoredValue("circularDrafts", []);
+  const existingIndex = circularDrafts.findIndex((draft) => draft.aprNumber === printCircularSelectedApr);
+  if (existingIndex >= 0) {
+    circularDrafts[existingIndex] = { ...circularDrafts[existingIndex], ...draftData };
+  } else {
+    circularDrafts.push(draftData);
+  }
+
+  setStoredValue("circularDrafts", circularDrafts);
+
+  const checkStatus = getStoredValue("circularCheckStatus", {});
+  if (checkStatus[printCircularSelectedApr] && checkStatus[printCircularSelectedApr].status === "draft") {
+    checkStatus[printCircularSelectedApr] = { status: "draft", checker1: null, checker2: null, createdAt: new Date().toISOString() };
+    setStoredValue("circularCheckStatus", checkStatus);
+  }
+
+  draftCircularEditMode = true;
+  window.alert("Draft circular saved successfully.");
+  renderPrintCircularPanel();
+}
+
 function handleCreateCircular() {
   if (!printCircularSelectedApr) {
     window.alert("Please select an APR No. before creating the circular.");
@@ -2693,7 +3118,8 @@ function handleCreateCircular() {
   let circularDrafts = getStoredValue("circularDrafts", []);
   const existingIndex = circularDrafts.findIndex((d) => d.aprNumber === printCircularSelectedApr);
   if (existingIndex >= 0) {
-    circularDrafts[existingIndex] = { ...circularDrafts[existingIndex], ...draftData };
+    const existingDraft = circularDrafts[existingIndex];
+    circularDrafts[existingIndex] = { ...existingDraft, ...draftData };
   } else {
     circularDrafts.push(draftData);
   }
@@ -2717,11 +3143,18 @@ function handleCreateCircular() {
   });
   setStoredValue("circularAuditTrail", auditTrail);
 
+  draftCircularEditMode = false;
+  printCircularSelectedApr = "";
+  printCircularSelectedFinancialYear = "";
+  printCircularSelectedDivision = "";
+  printCircularSelectedState = "";
+  printCircularSelectedMaterial = "";
   window.alert("Circular created successfully and submitted to Checker-1 for checking.");
   renderPrintCircularPanel();
 }
 
 function renderCheckCircularPanel() {
+  const activeTab = checkerActiveTab || "checker1";
   const circularDrafts = getStoredValue("circularDrafts", []);
   const checkStatus = getStoredValue("circularCheckStatus", {});
   const auditTrail = getStoredValue("circularAuditTrail", {});
@@ -2859,12 +3292,12 @@ function renderCheckCircularPanel() {
       </div>
 
       <div class="checker-tabs">
-        <button type="button" class="checker-tab active" data-tab="checker1">CHECKER-1 QUEUE (${checker1Pending.length})</button>
-        <button type="button" class="checker-tab" data-tab="checker2">CHECKER-2 QUEUE (${checker2Pending.length})</button>
-        <button type="button" class="checker-tab" data-tab="returned">RETURNED FOR CORRECTION (${returnedForCorrection.length})</button>
+        <button type="button" class="checker-tab ${activeTab === 'checker1' ? 'active' : ''}" data-tab="checker1">CHECKER-1 QUEUE (${checker1Pending.length})</button>
+        <button type="button" class="checker-tab ${activeTab === 'checker2' ? 'active' : ''}" data-tab="checker2">CHECKER-2 QUEUE (${checker2Pending.length})</button>
+        <button type="button" class="checker-tab ${activeTab === 'returned' ? 'active' : ''}" data-tab="returned">RETURNED FOR CORRECTION (${returnedForCorrection.length})</button>
       </div>
 
-      <div id="checker1Panel" class="checker-panel active">
+      <div id="checker1Panel" class="checker-panel ${activeTab === 'checker1' ? 'active' : ''}" style="display:${activeTab === 'checker1' ? 'block' : 'none'};">
         <div class="panel-subheading">
           <h3>CHECKER-1 QUEUE</h3>
           <p>Circulars pending first-level checking</p>
@@ -2890,7 +3323,7 @@ function renderCheckCircularPanel() {
         </div>
       </div>
 
-      <div id="checker2Panel" class="checker-panel" style="display:none;">
+      <div id="checker2Panel" class="checker-panel ${activeTab === 'checker2' ? 'active' : ''}" style="display:${activeTab === 'checker2' ? 'block' : 'none'};">
         <div class="panel-subheading">
           <h3>CHECKER-2 QUEUE</h3>
           <p>Circulars passed by Checker-1, pending second-level checking</p>
@@ -2916,7 +3349,7 @@ function renderCheckCircularPanel() {
         </div>
       </div>
 
-      <div id="returnedPanel" class="checker-panel" style="display:none;">
+      <div id="returnedPanel" class="checker-panel ${activeTab === 'returned' ? 'active' : ''}" style="display:${activeTab === 'returned' ? 'block' : 'none'};">
         <div class="panel-subheading">
           <h3>CIRCULARS RETURNED FOR CORRECTION</h3>
           <p>Circulars returned by checkers with discrepancy remarks</p>
@@ -3086,7 +3519,7 @@ function handleAdminDeleteReport(recordId) {
 }
 
 function renderMasterDataPanel() {
-  if (currentMasterDataView === "pricing") {
+  if (currentMasterDataView === "pricing" || currentMasterDataView === "pricing-fertilizer" || currentMasterDataView === "pricing-ipd" || currentMasterDataView === "pricing-tie-up") {
     renderPricingHeadingEntry();
   } else if (currentMasterDataView === "state") {
     renderStateNameEntry();
@@ -3174,26 +3607,44 @@ function handleDeleteEntry(id) {
 function handleAddPricingHeading() {
   if (!requireMasterDataAdministrator()) return;
   const description = document.getElementById("pricingHeadingInput")?.value.trim();
+  const categorySelectValue = document.getElementById("pricingHeadingCategorySelect")?.value || currentPricingHeadingCategory;
+  const normalizedCategory = normalizePricingHeadingCategory(categorySelectValue);
   if (!description) {
+    return;
+  }
+
+  const duplicate = pricingHeadingEntries.some((entry) => {
+    const entryCategory = normalizePricingHeadingCategory(entry?.category || entry?.entryType || entry?.division || "PRICING ENTRY HEADING-FERTILIZER");
+    return entryCategory === normalizedCategory && entry.description.trim().toLowerCase() === description.toLowerCase() && entry.id !== editingPricingHeadingId;
+  });
+
+  if (duplicate) {
+    window.alert("This pricing heading already exists for the selected entry type.");
     return;
   }
 
   if (editingPricingHeadingId) {
     const recordId = editingPricingHeadingId;
     pricingHeadingEntries = pricingHeadingEntries.map((entry) =>
-      entry.id === editingPricingHeadingId ? { ...entry, description } : entry
+      entry.id === editingPricingHeadingId ? { ...entry, description, category: normalizedCategory, division: getDivisionFromPricingHeadingCategory(normalizedCategory) } : entry
     );
     editingPricingHeadingId = null;
+    currentPricingHeadingCategory = normalizedCategory;
     logMasterDataAudit("Edit", "Pricing Heading Master", recordId);
   } else {
     const recordId = Date.now().toString();
     pricingHeadingEntries.push({
       id: recordId,
       description,
+      category: normalizedCategory,
+      division: getDivisionFromPricingHeadingCategory(normalizedCategory),
     });
+    currentPricingHeadingCategory = normalizedCategory;
     logMasterDataAudit("Create", "Pricing Heading Master", recordId);
   }
 
+  pricingHeadingEntries = normalizePricingHeadingEntries(pricingHeadingEntries);
+  persistPricingDataState();
   renderPricingHeadingEntry();
 }
 
@@ -3420,6 +3871,7 @@ function handleDeleteCategory(id) {
 }
 
 masterDataButton.addEventListener("click", () => {
+  resetNavigationHistory();
   currentMasterDataView = "material";
   currentAppView = "master";
   document.body.classList.remove("pricing-view-active");
@@ -3429,6 +3881,7 @@ masterDataButton.addEventListener("click", () => {
 });
 
 pricingDataButton.addEventListener("click", () => {
+  resetNavigationHistory();
   currentAppView = "pricing";
   document.body.classList.add("pricing-view-active");
   document.body.classList.remove("print-circular-active");
@@ -3439,6 +3892,7 @@ pricingDataButton.addEventListener("click", () => {
 });
 
 savedPricingRecordsButton.addEventListener("click", () => {
+  resetNavigationHistory();
   currentAppView = "saved-pricing-records";
   document.body.classList.add("pricing-view-active");
   document.body.classList.remove("print-circular-active");
@@ -3447,6 +3901,7 @@ savedPricingRecordsButton.addEventListener("click", () => {
 });
 
 reportsButton.addEventListener("click", () => {
+  resetNavigationHistory();
   currentAppView = "reports";
   document.body.classList.add("pricing-view-active");
   document.body.classList.remove("print-circular-active");
@@ -3455,6 +3910,7 @@ reportsButton.addEventListener("click", () => {
 });
 
 misButton.addEventListener("click", () => {
+  resetNavigationHistory();
   currentAppView = "mis";
   document.body.classList.add("pricing-view-active");
   document.body.classList.remove("print-circular-active");
@@ -3463,6 +3919,7 @@ misButton.addEventListener("click", () => {
 });
 
 printCircularButton.addEventListener("click", () => {
+  resetNavigationHistory();
   currentAppView = "print-circular";
   document.body.classList.add("pricing-view-active");
   document.body.classList.add("print-circular-active");
@@ -3482,6 +3939,7 @@ printCircularButton.addEventListener("click", () => {
 });
 
 checkCircularButton.addEventListener("click", () => {
+  resetNavigationHistory();
   currentAppView = "check-circular";
   document.body.classList.add("pricing-view-active");
   document.body.classList.remove("print-circular-active");
@@ -3490,6 +3948,7 @@ checkCircularButton.addEventListener("click", () => {
 });
 
 approveCircularButton.addEventListener("click", () => {
+  resetNavigationHistory();
   currentAppView = "approve-circular";
   document.body.classList.add("pricing-view-active");
   document.body.classList.remove("print-circular-active");
@@ -3498,12 +3957,142 @@ approveCircularButton.addEventListener("click", () => {
 });
 
 circularArchiveButton.addEventListener("click", () => {
+  resetNavigationHistory();
   currentAppView = "circular-archive";
   document.body.classList.add("pricing-view-active");
   document.body.classList.remove("print-circular-active");
   masterDataPanel.classList.remove("hidden");
   renderCircularArchivePanel();
 });
+
+function getNavigationSnapshot() {
+  return {
+    view: currentAppView,
+    approvalActiveTab,
+    checkerActiveTab,
+    currentMasterDataView,
+    currentCheckerLevel,
+    selectedCircularForCheck: selectedCircularForCheck ? { ...selectedCircularForCheck } : null,
+    printCircularSelectedApr,
+    printCircularSelectedFinancialYear,
+    printCircularSelectedDivision,
+    printCircularSelectedState,
+    printCircularSelectedMaterial,
+    printCircularCcText,
+    printCircularSignatoryText,
+    printCircularTermsHtml,
+    printCircularIntroText,
+    printCircularDateOfCircular,
+    printCircularEffectiveFrom,
+    savedRecordFilters: { ...savedRecordFilters },
+    reportRecordFilters: { ...reportRecordFilters },
+    activeReportFilterCol,
+    misFilters: Object.fromEntries(Object.entries(misFilters).map(([key, values]) => [key, Array.isArray(values) ? [...values] : values])),
+    misDrillDown: misDrillDown.map((item) => ({ ...item })),
+    misTableSearch,
+    misTableSort: { ...misTableSort },
+    misTablePage,
+    misComparisonKey,
+    misExpandedNodes: [...misExpandedNodes],
+    misDrillSort: { ...misDrillSort },
+    misDrillExpandedRows: [...misDrillExpandedRows],
+    misApplied,
+    reportDrillDownExpanded: [...reportDrillDownExpanded],
+    reportDrillDownZoom,
+    approvedArchiveExpanded: [...approvedArchiveExpanded],
+    circularArchiveExpanded: [...circularArchiveExpanded],
+    selectedSavedRowIds: [...selectedSavedRowIds],
+    editingSavedRowIds: [...editingSavedRowIds],
+    scrollY: window.scrollY,
+  };
+}
+
+function restoreNavigationState(snapshot) {
+  if (!snapshot) return;
+
+  currentAppView = snapshot.view || currentAppView;
+  approvalActiveTab = snapshot.approvalActiveTab || approvalActiveTab;
+  checkerActiveTab = snapshot.checkerActiveTab || checkerActiveTab;
+  currentMasterDataView = snapshot.currentMasterDataView || currentMasterDataView;
+  currentCheckerLevel = snapshot.currentCheckerLevel || currentCheckerLevel;
+  selectedCircularForCheck = snapshot.selectedCircularForCheck ? { ...snapshot.selectedCircularForCheck } : null;
+  printCircularSelectedApr = snapshot.printCircularSelectedApr || "";
+  printCircularSelectedFinancialYear = snapshot.printCircularSelectedFinancialYear || "";
+  printCircularSelectedDivision = snapshot.printCircularSelectedDivision || "";
+  printCircularSelectedState = snapshot.printCircularSelectedState || "";
+  printCircularSelectedMaterial = snapshot.printCircularSelectedMaterial || "";
+  printCircularCcText = snapshot.printCircularCcText || "";
+  printCircularSignatoryText = snapshot.printCircularSignatoryText || "Dy. General Manager (Fin.)\nAuthorized Signatory";
+  printCircularTermsHtml = snapshot.printCircularTermsHtml || "";
+  printCircularIntroText = snapshot.printCircularIntroText || "The following pricing and sales terms have been approved for details mentioned above.";
+  printCircularDateOfCircular = snapshot.printCircularDateOfCircular || "";
+  printCircularEffectiveFrom = snapshot.printCircularEffectiveFrom || "";
+  savedRecordFilters = snapshot.savedRecordFilters ? { ...snapshot.savedRecordFilters } : savedRecordFilters;
+  reportRecordFilters = snapshot.reportRecordFilters ? { ...snapshot.reportRecordFilters } : reportRecordFilters;
+  activeReportFilterCol = snapshot.activeReportFilterCol || null;
+  misFilters = snapshot.misFilters ? Object.fromEntries(Object.entries(snapshot.misFilters).map(([key, values]) => [key, Array.isArray(values) ? [...values] : values])) : misFilters;
+  misDrillDown = Array.isArray(snapshot.misDrillDown) ? snapshot.misDrillDown.map((item) => ({ ...item })) : misDrillDown;
+  misTableSearch = snapshot.misTableSearch || "";
+  misTableSort = snapshot.misTableSort ? { ...snapshot.misTableSort } : misTableSort;
+  misTablePage = Number(snapshot.misTablePage) || 1;
+  misComparisonKey = snapshot.misComparisonKey || misComparisonKey;
+  misExpandedNodes = new Set(Array.isArray(snapshot.misExpandedNodes) ? snapshot.misExpandedNodes : []);
+  misDrillSort = snapshot.misDrillSort ? { ...snapshot.misDrillSort } : misDrillSort;
+  misDrillExpandedRows = new Set(Array.isArray(snapshot.misDrillExpandedRows) ? snapshot.misDrillExpandedRows : []);
+  misApplied = Boolean(snapshot.misApplied);
+  reportDrillDownExpanded = new Set(Array.isArray(snapshot.reportDrillDownExpanded) ? snapshot.reportDrillDownExpanded : []);
+  reportDrillDownZoom = Number(snapshot.reportDrillDownZoom) || 100;
+  approvedArchiveExpanded = new Set(Array.isArray(snapshot.approvedArchiveExpanded) ? snapshot.approvedArchiveExpanded : []);
+  circularArchiveExpanded = new Set(Array.isArray(snapshot.circularArchiveExpanded) ? snapshot.circularArchiveExpanded : []);
+  selectedSavedRowIds = new Set(Array.isArray(snapshot.selectedSavedRowIds) ? snapshot.selectedSavedRowIds : []);
+  editingSavedRowIds = new Set(Array.isArray(snapshot.editingSavedRowIds) ? snapshot.editingSavedRowIds : []);
+
+  document.body.classList.toggle("pricing-view-active", ["pricing", "saved-pricing-records", "reports", "mis", "print-circular", "check-circular", "approve-circular", "circular-archive"].includes(currentAppView));
+  document.body.classList.toggle("print-circular-active", currentAppView === "print-circular");
+
+  if (currentAppView === "pricing") renderPricingDataTable();
+  else if (currentAppView === "saved-pricing-records") renderSavedPricingRecordsPanel();
+  else if (currentAppView === "reports") renderReportsPanel();
+  else if (currentAppView === "mis") renderMisPanel();
+  else if (currentAppView === "print-circular") renderPrintCircularPanel();
+  else if (currentAppView === "check-circular") renderCheckCircularPanel();
+  else if (currentAppView === "approve-circular") renderApproveCircularPanel();
+  else if (currentAppView === "circular-archive") renderCircularArchivePanel();
+  else renderMasterDataPanel();
+
+  if (Number.isFinite(Number(snapshot.scrollY))) {
+    window.scrollTo(0, Number(snapshot.scrollY));
+  }
+}
+
+function pushNavigationHistoryState() {
+  const snapshot = getNavigationSnapshot();
+  const last = navigationHistory[navigationHistory.length - 1];
+  if (last && JSON.stringify(last) === JSON.stringify(snapshot)) {
+    return;
+  }
+  navigationHistory.push(snapshot);
+  if (navigationHistory.length > 20) {
+    navigationHistory.shift();
+  }
+}
+
+function resetNavigationHistory() {
+  navigationHistory = [];
+  selectedCircularForCheck = null;
+  currentCheckerLevel = "checker1";
+  draftCircularEditMode = false;
+}
+
+function goBackToPreviousScreen() {
+  const previous = navigationHistory.pop();
+  if (previous) {
+    restoreNavigationState(previous);
+    return;
+  }
+
+  renderCurrentAppView();
+}
 
 function renderCurrentAppView() {
   if (currentAppView === "pricing") renderPricingDataTable();
@@ -3735,6 +4324,16 @@ masterDataPanel.addEventListener("click", (event) => {
     handleAdminDeleteReport(target.dataset.id);
   } else if (target.id === "printCircularCreateBtn") {
     handleCreateCircular();
+  } else if (target.id === "printCircularSaveDraftBtn") {
+    handleSaveDraftCircular();
+  } else if (target.id === "cancelDraftCircularEditBtn") {
+    draftCircularEditMode = false;
+    printCircularSelectedApr = "";
+    printCircularSelectedFinancialYear = "";
+    printCircularSelectedDivision = "";
+    printCircularSelectedState = "";
+    printCircularSelectedMaterial = "";
+    renderPrintCircularPanel();
   } else if (target.id === "approverSaveEditBtn") {
     saveApproverEdit();
   } else if (target.id === "approverApproveBtn") {
@@ -4087,7 +4686,7 @@ masterDataPanel.addEventListener("click", (event) => {
       .circular-terms { page-break-inside: auto; }
       .circular-terms-box table { page-break-inside: auto; }
       .circular-signatories { page-break-inside: avoid; }
-      .circular-cc { page-break-inside: avoid; }
+      .circular-cc { page-break-inside: auto; }
     }
   </style>
 </head>
@@ -4153,7 +4752,7 @@ masterDataPanel.addEventListener("click", (event) => {
           <div style="text-align: right; margin-top: 24px;">
             <div class="circular-signatory-box">${escapeHtml(printCircularSignatoryText || "").replace(/\n/g, "<br>")}</div>
           </div>
-        <div style="text-align: left; margin-top: 10px;">To State Incharge (Mkting) / State Finance Incharge</div>
+        <div style="text-align: left; margin-top: 10px;">To State Incharge (Mktg.) / State Finance Incharge</div>
         <div class="circular-cc">
           <div class="circular-cc-label">CC To</div>
           <div class="circular-cc-box">${escapeHtml(printCircularCcText || "").replace(/\n/g, "<br>")}</div>
@@ -4177,11 +4776,11 @@ masterDataPanel.addEventListener("click", (event) => {
   } else if (target.classList.contains("checker-tab")) {
     event.stopPropagation();
     event.preventDefault();
-    const tab = target.dataset.tab;
+    checkerActiveTab = target.dataset.tab;
     document.querySelectorAll(".checker-tab").forEach((t) => t.classList.remove("active"));
     target.classList.add("active");
     document.querySelectorAll(".checker-panel").forEach((p) => (p.style.display = "none"));
-    const panel = document.getElementById(tab + "Panel");
+    const panel = document.getElementById(checkerActiveTab + "Panel");
     if (panel) panel.style.display = "block";
     return;
   } else if (target.classList.contains("view-checker1-btn")) {
@@ -4196,16 +4795,32 @@ masterDataPanel.addEventListener("click", (event) => {
   } else if (target.classList.contains("view-returned-btn")) {
     const aprNumber = target.dataset.apr;
     openReturnedCorrection(aprNumber);
+  } else if (target.id === "checkerEditBtn") {
+    const aprNumber = selectedCircularForCheck?.aprNumber || printCircularSelectedApr;
+    if (aprNumber) {
+      openCheckerEdit(aprNumber, currentCheckerLevel || checkerActiveTab || "checker1");
+    }
+  } else if (target.id === "returnedCircularEditBtn") {
+    const aprNumber = selectedCircularForCheck?.aprNumber || printCircularSelectedApr;
+    if (aprNumber) {
+      openReturnedCircularEdit(aprNumber);
+    }
+  } else if (target.id === "returnedCircularSaveBtn") {
+    handleReturnedCircularEditSave();
+  } else if (target.id === "returnedCircularBackBtn") {
+    handleReturnedCircularEditBack();
   } else if (target.id === "checkerPassBtn") {
     handleCheckerPass();
+  } else if (target.id === "checkerEditPassBtn") {
+    handleCheckerEditPass();
+  } else if (target.id === "checkerEditSaveBtn") {
+    handleCheckerEditSave();
   } else if (target.id === "checkerReturnBtn") {
     handleCheckerReturn();
   } else if (target.id === "resubmitBtn") {
     handleResubmit();
   } else if (target.id === "backToCheckCircularBtn") {
-    selectedCircularForCheck = null;
-    currentAppView = "check-circular";
-    renderCheckCircularPanel();
+    goBackToPreviousScreen();
   } else if (target.classList.contains("approval-tab")) {
     event.stopPropagation();
     event.preventDefault();
@@ -4341,8 +4956,11 @@ function openCheckerReview(aprNumber, level) {
   const draft = circularDrafts.find((d) => d.aprNumber === aprNumber);
   if (!draft) return;
 
+  pushNavigationHistoryState();
+
   selectedCircularForCheck = { ...draft, checkerLevel: level };
   currentCheckerLevel = level;
+  currentAppView = "check-circular";
 
   printCircularSelectedApr = draft.aprNumber || "";
   printCircularSelectedFinancialYear = draft.financialYearId || "";
@@ -4390,9 +5008,10 @@ function openCheckerReview(aprNumber, level) {
         <h4>Checker Remarks / Discrepancy</h4>
         <textarea class="checker-remarks-textarea" id="checkerRemarks" placeholder="Enter discrepancy or remarks (required if returning)"></textarea>
         <div class="checker-action-buttons">
+          <button type="button" class="btn-secondary" id="checkerEditBtn">EDIT</button>
+          <button type="button" class="secondary-btn" id="backToCheckCircularBtn">BACK</button>
           <button type="button" class="btn-pass" id="checkerPassBtn">CHECKED & PASSED</button>
           <button type="button" class="btn-return" id="checkerReturnBtn">RETURN FOR CORRECTION</button>
-          <button type="button" class="secondary-btn" id="backToCheckCircularBtn">Back to Check Circular</button>
         </div>
       </div>
       <div class="audit-trail">
@@ -4403,10 +5022,108 @@ function openCheckerReview(aprNumber, level) {
   `;
 }
 
+function openCheckerEdit(aprNumber, level) {
+  const circularDrafts = getStoredValue("circularDrafts", []);
+  const draft = circularDrafts.find((item) => item.aprNumber === aprNumber);
+  if (!draft) return;
+
+  pushNavigationHistoryState();
+
+  selectedCircularForCheck = { ...draft, checkerLevel: level, editingFromChecker: true };
+  currentCheckerLevel = level;
+  currentAppView = "print-circular";
+  document.body.classList.add("print-circular-active");
+
+  printCircularSelectedApr = draft.aprNumber || "";
+  printCircularSelectedFinancialYear = draft.financialYearId || "";
+  printCircularSelectedDivision = draft.division || "";
+  printCircularSelectedState = draft.stateId || "";
+  printCircularSelectedMaterial = draft.materialId || "";
+  printCircularTermsHtml = draft.termsHtml || "";
+  printCircularIntroText = draft.introText || "";
+  printCircularSignatoryText = draft.signatoryText || printCircularSignatoryText;
+  printCircularCcText = draft.ccText || "";
+  printCircularDateOfCircular = draft.dateOfCircular || "";
+  printCircularEffectiveFrom = draft.effectiveFrom || "";
+
+  renderPrintCircularPanel();
+}
+
+function handleCheckerEditSave() {
+  if (!selectedCircularForCheck || !printCircularSelectedApr) return;
+
+  const aprNumber = printCircularSelectedApr;
+  const level = currentCheckerLevel || selectedCircularForCheck.checkerLevel;
+  const termsEditor = masterDataPanel.querySelector(".circular-terms-editor");
+  const introEditor = masterDataPanel.querySelector(".circular-intro-editor");
+  const signatoryTextarea = masterDataPanel.querySelector(".circular-signatory-textarea");
+  const ccTextarea = masterDataPanel.querySelector(".circular-cc-textarea");
+  const dateOfCircularInput = masterDataPanel.querySelector("#circularDateOfCircular");
+  const effectiveFromInput = masterDataPanel.querySelector("#circularEffectiveFrom");
+
+  if (!dateOfCircularInput || !dateOfCircularInput.value) {
+    window.alert("Please enter the Date of Circular before saving.");
+    return;
+  }
+  if (!effectiveFromInput || !effectiveFromInput.value) {
+    window.alert("Please enter the Effective From date before saving.");
+    return;
+  }
+  if (!signatoryTextarea || !signatoryTextarea.value.trim()) {
+    window.alert("Please enter the Signatory details before saving.");
+    return;
+  }
+
+  const circularDrafts = getStoredValue("circularDrafts", []);
+  const draftIndex = circularDrafts.findIndex((draft) => draft.aprNumber === aprNumber);
+  if (draftIndex >= 0) {
+    circularDrafts[draftIndex] = {
+      ...circularDrafts[draftIndex],
+      aprNumber,
+      financialYearId: printCircularSelectedFinancialYear || circularDrafts[draftIndex].financialYearId || "",
+      division: printCircularSelectedDivision || circularDrafts[draftIndex].division || "",
+      stateId: printCircularSelectedState || circularDrafts[draftIndex].stateId || "",
+      materialId: printCircularSelectedMaterial || circularDrafts[draftIndex].materialId || "",
+      termsHtml: termsEditor ? termsEditor.innerHTML : printCircularTermsHtml,
+      introText: introEditor ? (introEditor.innerText || introEditor.textContent) : printCircularIntroText,
+      signatoryText: signatoryTextarea ? signatoryTextarea.value : printCircularSignatoryText,
+      ccText: ccTextarea ? ccTextarea.value : printCircularCcText,
+      dateOfCircular: dateOfCircularInput ? dateOfCircularInput.value : printCircularDateOfCircular,
+      effectiveFrom: effectiveFromInput ? effectiveFromInput.value : printCircularEffectiveFrom,
+      lastEditedBy: level === "checker1" ? "CHECKER-1" : "CHECKER-2",
+      lastEditedAt: new Date().toISOString(),
+    };
+  }
+  setStoredValue("circularDrafts", circularDrafts);
+
+  const auditTrail = getStoredValue("circularAuditTrail", {});
+  if (!auditTrail[aprNumber]) auditTrail[aprNumber] = [];
+  auditTrail[aprNumber].push({
+    action: "edited_by_checker",
+    level: level === "checker1" ? "CHECKER-1" : "CHECKER-2",
+    remarks: "Circular edited before check pass",
+    timestamp: new Date().toISOString(),
+  });
+  setStoredValue("circularAuditTrail", auditTrail);
+
+  window.alert("Circular updated successfully.");
+  renderPrintCircularPanel();
+}
+
+function handleCheckerEditPass() {
+  if (!selectedCircularForCheck) return;
+  handleCheckerEditSave();
+  if (selectedCircularForCheck) {
+    handleCheckerPass();
+  }
+}
+
 function viewCircularOnly(aprNumber) {
   const circularDrafts = getStoredValue("circularDrafts", []);
   const draft = circularDrafts.find((d) => d.aprNumber === aprNumber);
   if (!draft) return;
+
+  pushNavigationHistoryState();
 
   const checkStatus = getStoredValue("circularCheckStatus", {});
   const status = checkStatus[aprNumber]?.status;
@@ -4510,13 +5227,12 @@ function viewCircularOnly(aprNumber) {
         <div class="circular-terms-editor" contenteditable="false">${printCircularTermsHtml || ""}</div>
       </div>
       <div style="text-align: right; margin-top: 20px;">
-        <div class="circular-signatory-label">Yours faithfully,</div>
         <div class="circular-signatory-name">${escapeHtml(printCircularSignatoryText || "").replace(/\n/g, "<br>")}</div>
       </div>
       <div class="circular-page-footer">© ${new Date().getFullYear()} Pricing Data Portal | All Rights Reserved</div>
       <div class="table-actions pricing-data-actions" style="margin-top:12px">
         ${canEdit ? `<button type="button" class="secondary-btn edit-pending-circular-btn" data-apr="${escapeHtml(aprNumber)}">Edit</button>` : ""}
-        <button type="button" class="secondary-btn" id="backToCheckCircularBtn">Back to Check Circular</button>
+        <button type="button" class="secondary-btn" id="backToCheckCircularBtn">BACK</button>
       </div>
     </div>
   `;
@@ -4622,12 +5338,16 @@ function printApprovedCircular(aprNumber) {
     .circular-table { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
     .circular-table th { background: #003366; color: white; padding: 7px 8px; border: 1px solid #cbd5e1; text-align: left; font-size: 9pt; }
     .circular-table td { padding: 6px 8px; border: 1px solid #cbd5e1; font-size: 9.5pt; vertical-align: top; }
+    .circular-table td.col-value { text-align: right; }
     .circular-gst { font-size: 10pt; margin: 10px 0; }
     .circular-terms { margin-top: 18px; }
     .circular-terms-label { font-size: 10pt; font-weight: 700; margin-bottom: 4px; }
     .circular-terms-box { border: 1px solid #cbd5e1; padding: 8px; font-size: 10pt; min-height: 40px; }
     .circular-signatory { text-align: right; margin-top: 20px; }
     .circular-signatory-name { font-weight: 700; font-size: 10pt; }
+    .circular-recipient { margin-top: 14px; page-break-inside: avoid; }
+    .circular-recipient-label { font-weight: 700; font-size: 10pt; margin-bottom: 4px; }
+    .circular-recipient-box { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; line-height: 1.4; }
     .circular-footer { text-align: center; font-size: 9pt; color: #64748b; margin-top: 20px; border-top: 1px solid #cbd5e1; padding-top: 10px; }
     @media print { body { margin: 0; } }
   </style>
@@ -4647,8 +5367,12 @@ function printApprovedCircular(aprNumber) {
     <div class="circular-terms-box">${printCircularTermsHtml || ""}</div>
   </div>
   <div class="circular-signatory">
-    <div>Yours faithfully,</div>
     <div class="circular-signatory-name">${escapeHtml(printCircularSignatoryText || "").replace(/\n/g, "<br>")}</div>
+  </div>
+  <div class="circular-recipient">To State Incharge (Mktg.) / State Finance Incharge</div>
+  <div class="circular-recipient">
+    <div class="circular-recipient-label">CC To</div>
+    <div class="circular-recipient-box">${escapeHtml(printCircularCcText || "").replace(/\n/g, "<br>")}</div>
   </div>
   <div class="circular-footer">© ${new Date().getFullYear()} Pricing Data Portal | All Rights Reserved</div>
 </body>
@@ -4867,7 +5591,6 @@ function renderArchiveDetailView(record, level) {
       <div class="archive-apr-header">
         <span class="archive-apr-title">APR: ${escapeHtml(aprNumber)}</span>
         <span class="status-badge ${statusClass}">${statusLabel}</span>
-        <button type="button" class="secondary-btn archive-view-btn" data-apr="${escapeHtml(aprNumber)}">View Circular</button>
         <button type="button" class="add-row-btn archive-download-btn" data-apr="${escapeHtml(aprNumber)}">Download PDF</button>
       </div>
       <div class="archive-detail-content">
@@ -4884,7 +5607,6 @@ function renderArchiveDetailView(record, level) {
           <div class="circular-terms-archive">${draft.termsHtml || ""}</div>
         </div>
         <div class="circular-signatory">
-          <div>Yours faithfully,</div>
           <div class="circular-signatory-name">${escapeHtml(draft.signatoryText || "").replace(/\n/g, "<br>")}</div>
         </div>
       </div>
@@ -5034,12 +5756,16 @@ function downloadArchivePdf(aprNumber) {
     .circular-table { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
     .circular-table th { background: #003366; color: white; padding: 7px 8px; border: 1px solid #cbd5e1; text-align: left; font-size: 9pt; }
     .circular-table td { padding: 6px 8px; border: 1px solid #cbd5e1; font-size: 9.5pt; vertical-align: top; }
+    .circular-table td.col-value { text-align: right; }
     .circular-gst { font-size: 10pt; margin: 10px 0; }
     .circular-terms { margin-top: 18px; }
     .circular-terms-label { font-size: 10pt; font-weight: 700; margin-bottom: 4px; }
     .circular-terms-box { border: 1px solid #cbd5e1; padding: 8px; font-size: 10pt; min-height: 40px; }
     .circular-signatory { text-align: right; margin-top: 20px; }
     .circular-signatory-name { font-weight: 700; font-size: 10pt; }
+    .circular-recipient { margin-top: 14px; page-break-inside: avoid; }
+    .circular-recipient-label { font-weight: 700; font-size: 10pt; margin-bottom: 4px; }
+    .circular-recipient-box { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; line-height: 1.4; }
     .digital-signature-section { text-align: right; margin-top: 16px; padding: 10px; border: 2px solid #059669; border-radius: 8px; display: inline-block; margin-left: auto; }
     .digital-signature-label { font-weight: 700; color: #059669; font-size: 10pt; }
     .digital-signature-date { font-size: 9pt; color: #64748b; }
@@ -5062,8 +5788,12 @@ function downloadArchivePdf(aprNumber) {
     <div class="circular-terms-box">${draft.termsHtml || ""}</div>
   </div>
   <div class="circular-signatory">
-    <div>Yours faithfully,</div>
     <div class="circular-signatory-name">${escapeHtml(draft.signatoryText || "").replace(/\n/g, "<br>")}</div>
+  </div>
+  <div class="circular-recipient">To State Incharge (Mktg.) / State Finance Incharge</div>
+  <div class="circular-recipient">
+    <div class="circular-recipient-label">CC To</div>
+    <div class="circular-recipient-box">${escapeHtml(draft.ccText || "").replace(/\n/g, "<br>")}</div>
   </div>
   ${signatureSection}
   <div class="circular-footer">© ${new Date().getFullYear()} Pricing Data Portal | All Rights Reserved</div>
@@ -5185,6 +5915,8 @@ function openEditPendingCircular(aprNumber) {
   const draft = circularDrafts.find((d) => d.aprNumber === aprNumber);
   if (!draft) return;
 
+  pushNavigationHistoryState();
+
   selectedCircularForCheck = { ...draft, checkerLevel: "approver_edit" };
   currentCheckerLevel = "approver_edit";
 
@@ -5285,9 +6017,7 @@ function saveApproverEdit() {
 function cancelApproverEdit() {
   selectedCircularForCheck = null;
   currentCheckerLevel = null;
-  currentAppView = "approve-circular";
-  document.body.classList.remove("print-circular-active");
-  renderApproveCircularPanel();
+  goBackToPreviousScreen();
 }
 
 function approveUpdatedCircular(aprNumber) {
@@ -5322,6 +6052,8 @@ function openReturnedCorrection(aprNumber) {
   const draft = circularDrafts.find((d) => d.aprNumber === aprNumber);
   if (!draft) return;
 
+  pushNavigationHistoryState();
+
   const auditTrail = getStoredValue("circularAuditTrail", {});
   const audit = auditTrail[aprNumber] || [];
   const lastReturn = audit.filter((a) => a.action === "returned").pop();
@@ -5355,14 +6087,129 @@ function openReturnedCorrection(aprNumber) {
       ` : ""}
       <div class="checker-action-panel">
         <h4>Preparer Correction</h4>
-        <p>Please review the discrepancy and make necessary corrections in the Create Circular tab.</p>
+        <p>Please review the discrepancy and make necessary corrections to the selected circular before resubmitting.</p>
         <div class="checker-action-buttons">
+          <button type="button" class="secondary-btn" id="returnedCircularEditBtn">EDIT</button>
           <button type="button" class="btn-resubmit" id="resubmitBtn">RESUBMIT CIRCULAR</button>
-          <button type="button" class="secondary-btn" id="backToCheckCircularBtn">Back to Check Circular</button>
+          <button type="button" class="secondary-btn" id="backToCheckCircularBtn">BACK</button>
         </div>
       </div>
     </div>
   `;
+}
+
+function openReturnedCircularEdit(aprNumber) {
+  const circularDrafts = getStoredValue("circularDrafts", []);
+  const draft = circularDrafts.find((item) => item.aprNumber === aprNumber);
+  if (!draft) return;
+
+  pushNavigationHistoryState();
+
+  selectedCircularForCheck = { ...draft, checkerLevel: "preparer", editingFromChecker: true, fromReturnedCorrection: true };
+  currentCheckerLevel = "preparer";
+  currentAppView = "print-circular";
+  document.body.classList.add("print-circular-active");
+
+  printCircularSelectedApr = draft.aprNumber || "";
+  printCircularSelectedFinancialYear = draft.financialYearId || "";
+  printCircularSelectedDivision = draft.division || "";
+  printCircularSelectedState = draft.stateId || "";
+  printCircularSelectedMaterial = draft.materialId || "";
+  printCircularTermsHtml = draft.termsHtml || "";
+  printCircularIntroText = draft.introText || "";
+  printCircularSignatoryText = draft.signatoryText || printCircularSignatoryText;
+  printCircularCcText = draft.ccText || "";
+  printCircularDateOfCircular = draft.dateOfCircular || "";
+  printCircularEffectiveFrom = draft.effectiveFrom || "";
+
+  renderPrintCircularPanel();
+}
+
+function handleReturnedCircularEditSave() {
+  if (!selectedCircularForCheck || !selectedCircularForCheck.aprNumber) return;
+
+  const aprNumber = selectedCircularForCheck.aprNumber;
+  const termsEditor = masterDataPanel.querySelector(".circular-terms-editor");
+  const introEditor = masterDataPanel.querySelector(".circular-intro-editor");
+  const signatoryTextarea = masterDataPanel.querySelector(".circular-signatory-textarea");
+  const ccTextarea = masterDataPanel.querySelector(".circular-cc-textarea");
+  const dateOfCircularInput = masterDataPanel.querySelector("#circularDateOfCircular");
+  const effectiveFromInput = masterDataPanel.querySelector("#circularEffectiveFrom");
+
+  if (!dateOfCircularInput || !dateOfCircularInput.value) {
+    window.alert("Please enter the Date of Circular before saving.");
+    return;
+  }
+  if (!effectiveFromInput || !effectiveFromInput.value) {
+    window.alert("Please enter the Effective From date before saving.");
+    return;
+  }
+  if (!signatoryTextarea || !signatoryTextarea.value.trim()) {
+    window.alert("Please enter the Signatory details before saving.");
+    return;
+  }
+
+  const circularDrafts = getStoredValue("circularDrafts", []);
+  const draftIndex = circularDrafts.findIndex((draft) => draft.aprNumber === aprNumber);
+  if (draftIndex >= 0) {
+    circularDrafts[draftIndex] = {
+      ...circularDrafts[draftIndex],
+      aprNumber,
+      financialYearId: printCircularSelectedFinancialYear || circularDrafts[draftIndex].financialYearId || "",
+      division: printCircularSelectedDivision || circularDrafts[draftIndex].division || "",
+      stateId: printCircularSelectedState || circularDrafts[draftIndex].stateId || "",
+      materialId: printCircularSelectedMaterial || circularDrafts[draftIndex].materialId || "",
+      termsHtml: termsEditor ? termsEditor.innerHTML : printCircularTermsHtml,
+      introText: introEditor ? (introEditor.innerText || introEditor.textContent) : printCircularIntroText,
+      signatoryText: signatoryTextarea ? signatoryTextarea.value : printCircularSignatoryText,
+      ccText: ccTextarea ? ccTextarea.value : printCircularCcText,
+      dateOfCircular: dateOfCircularInput ? dateOfCircularInput.value : printCircularDateOfCircular,
+      effectiveFrom: effectiveFromInput ? effectiveFromInput.value : printCircularEffectiveFrom,
+      lastEditedBy: "PREPARER",
+      lastEditedAt: new Date().toISOString(),
+    };
+  }
+  setStoredValue("circularDrafts", circularDrafts);
+
+  const auditTrail = getStoredValue("circularAuditTrail", {});
+  if (!auditTrail[aprNumber]) auditTrail[aprNumber] = [];
+  auditTrail[aprNumber].push({
+    action: "edited_by_preparer",
+    level: "PREPARER",
+    remarks: "Circular updated during returned-for-correction review",
+    timestamp: new Date().toISOString(),
+    editedFields: {
+      dateOfCircular: dateOfCircularInput ? dateOfCircularInput.value : "",
+      effectiveFrom: effectiveFromInput ? effectiveFromInput.value : "",
+      signatoryText: signatoryTextarea ? "[REDACTED]" : "",
+      introText: introEditor ? "[REDACTED]" : "",
+      termsHtml: termsEditor ? "[REDACTED]" : "",
+      ccText: ccTextarea ? "[REDACTED]" : "",
+    }
+  });
+  setStoredValue("circularAuditTrail", auditTrail);
+
+  selectedCircularForCheck = { ...circularDrafts[draftIndex >= 0 ? draftIndex : 0], checkerLevel: "preparer", editingFromChecker: true, fromReturnedCorrection: true };
+  currentCheckerLevel = "preparer";
+  printCircularSelectedApr = selectedCircularForCheck.aprNumber || "";
+  printCircularSelectedFinancialYear = selectedCircularForCheck.financialYearId || "";
+  printCircularSelectedDivision = selectedCircularForCheck.division || "";
+  printCircularSelectedState = selectedCircularForCheck.stateId || "";
+  printCircularSelectedMaterial = selectedCircularForCheck.materialId || "";
+  printCircularTermsHtml = selectedCircularForCheck.termsHtml || "";
+  printCircularIntroText = selectedCircularForCheck.introText || "";
+  printCircularSignatoryText = selectedCircularForCheck.signatoryText || printCircularSignatoryText;
+  printCircularCcText = selectedCircularForCheck.ccText || "";
+  printCircularDateOfCircular = selectedCircularForCheck.dateOfCircular || "";
+  printCircularEffectiveFrom = selectedCircularForCheck.effectiveFrom || "";
+
+  window.alert("Circular updated successfully.");
+  goBackToPreviousScreen();
+}
+
+function handleReturnedCircularEditBack() {
+  if (!selectedCircularForCheck || !selectedCircularForCheck.aprNumber) return;
+  goBackToPreviousScreen();
 }
 
 function handleCheckerPass() {
@@ -5610,7 +6457,7 @@ masterDataPanel.addEventListener("change", (event) => {
     editor.style.height = "auto";
     editor.style.height = editor.scrollHeight + "px";
   } else if (event.target.id === "masterDataModeSelect") {
-    currentMasterDataView = event.target.value;
+    setPricingMasterCategoryFromSelection(event.target.value);
     renderMasterDataPanel();
   } else if (event.target.classList.contains("report-division-select")) {
     updateReportRecord(event.target.dataset.rowId, "division", event.target.value);
