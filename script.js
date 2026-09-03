@@ -1491,7 +1491,7 @@ function renderReportDetailTable(records, level) {
       <td>${escapeHtml(display.category || "Not classified")}</td>
       <td>${escapeHtml(display.unitRate)}</td>
       <td>${escapeHtml(display.pricingHeading)}</td>
-      <td>${formatMultilineText(display.value)}</td>
+      <td class="col-value">${formatMultilineText(display.value)}</td>
       <td>${escapeHtml(display.remarks)}</td>
       <td>${escapeHtml(display.approvingAuthority)}</td>
       <td>${escapeHtml(display.dateOfApproval)}</td>
@@ -2346,7 +2346,7 @@ function renderMisPanel() {
   const filterHtml = MIS_FILTERS.map((filter) => {
     const options = optionsFor(filter.key), selected = activeFilters[filter.key];
     const selectedCount = selected.length;
-    return `<div class="mis-filter" data-mis-filter-wrap="${filter.key}"><label>${filter.label}</label><button type="button" class="mis-filter-toggle" data-mis-filter-toggle="${filter.key}" aria-expanded="false">${selectedCount ? `${selectedCount} selected` : "All values"}<span>âŒ„</span></button><div class="mis-filter-menu" id="misFilterMenu-${filter.key}" hidden><input class="mis-filter-search" data-mis-search="${filter.key}" placeholder="Search ${filter.label}" /><div class="mis-filter-menu-actions"><button type="button" data-mis-select-all="${filter.key}">Select All</button><button type="button" data-mis-clear-filter="${filter.key}">Clear</button></div><div class="mis-filter-options">${options.map((option) => `<label data-mis-option="${filter.key}"><input type="checkbox" data-mis-filter="${filter.key}" value="${escapeHtml(option)}" ${selected.includes(String(option)) ? "checked" : ""}> <span>${escapeHtml(option)}</span></label>`).join("") || '<span class="mis-no-options">No report data available</span>'}</div></div></div>`;
+    return `<div class="mis-filter" data-mis-filter-wrap="${filter.key}"><label>${filter.label}</label><button type="button" class="mis-filter-toggle" data-mis-filter-toggle="${filter.key}" aria-expanded="false">${selectedCount ? `${selectedCount} selected` : "All values"}<span>âŒ„</span></button><div class="mis-filter-menu" id="misFilterMenu-${filter.key}" hidden><input class="mis-filter-search" data-mis-search="${filter.key}" placeholder="Search ${filter.label}" /><div class="mis-filter-menu-actions"><button type="button" data-mis-select-all="${filter.key}">Select All</button><button type="button" data-mis-clear-filter="${filter.key}">Clear All</button></div><div class="mis-filter-options">${options.map((option) => `<label data-mis-option="${filter.key}"><input type="checkbox" data-mis-filter="${filter.key}" value="${escapeHtml(option)}" ${selected.includes(String(option)) ? "checked" : ""}> <span>${escapeHtml(option)}</span></label>`).join("") || '<span class="mis-no-options">No report data available</span>'}</div></div></div>`;
   }).join("");
 
   // Build results section only when misApplied is true
@@ -4117,9 +4117,11 @@ function getMisFilteredDisplayRecords() {
 masterDataPanel.addEventListener("change", (event) => {
   const filterKey = event.target.dataset.misFilter;
   if (filterKey) {
-    misFilters[filterKey] = [...document.querySelectorAll(`[data-mis-filter="${filterKey}"]:checked`)].map((option) => option.value);
+    misFilters[filterKey] = [...masterDataPanel.querySelectorAll(`[data-mis-filter="${filterKey}"]:checked`)].map((option) => option.value);
     misTablePage = 1;
-    renderMisPanel();
+    const toggle = masterDataPanel.querySelector(`[data-mis-filter-toggle="${filterKey}"]`);
+    const label = toggle && [...toggle.childNodes].find((node) => node.nodeType === Node.TEXT_NODE);
+    if (label) label.textContent = misFilters[filterKey].length ? `${misFilters[filterKey].length} selected` : "All values";
   } else if (event.target.id === "misComparisonSelect") {
     misComparisonKey = event.target.value;
     renderMisPanel();
@@ -4156,11 +4158,21 @@ masterDataPanel.addEventListener("click", (event) => {
     renderMisPanel();
   } else if (target.dataset.misSelectAll) {
     const key = target.dataset.misSelectAll;
-    misFilters[key] = [...document.querySelectorAll(`[data-mis-filter="${key}"]`)].map((input) => input.value);
-    misTablePage = 1; renderMisPanel();
+    const inputs = [...masterDataPanel.querySelectorAll(`[data-mis-filter="${key}"]`)];
+    inputs.forEach((input) => { input.checked = true; });
+    misFilters[key] = inputs.map((input) => input.value);
+    misTablePage = 1;
+    const toggle = masterDataPanel.querySelector(`[data-mis-filter-toggle="${key}"]`);
+    const label = toggle && [...toggle.childNodes].find((node) => node.nodeType === Node.TEXT_NODE);
+    if (label) label.textContent = misFilters[key].length ? `${misFilters[key].length} selected` : "All values";
   } else if (target.dataset.misClearFilter) {
-    delete misFilters[target.dataset.misClearFilter];
-    misTablePage = 1; renderMisPanel();
+    const key = target.dataset.misClearFilter;
+    delete misFilters[key];
+    masterDataPanel.querySelectorAll(`[data-mis-filter="${key}"]`).forEach((input) => { input.checked = false; });
+    misTablePage = 1;
+    const toggle = masterDataPanel.querySelector(`[data-mis-filter-toggle="${key}"]`);
+    const label = toggle && [...toggle.childNodes].find((node) => node.nodeType === Node.TEXT_NODE);
+    if (label) label.textContent = "All values";
   } else if (target.id === "misApplyBtn") { misApplied = true; misTablePage = 1; renderMisPanel(); }
   else if (target.id === "misClearBtn") { misFilters = {}; misApplied = false; misTableSearch = ""; misTablePage = 1; renderMisPanel(); }
   else if (target.id === "misResetBtn") { misFilters = {}; misApplied = false; misDrillDown = []; misExpandedNodes.clear(); misTableSearch = ""; misTablePage = 1; renderMisPanel(); }
