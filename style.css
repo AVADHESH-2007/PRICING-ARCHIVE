@@ -2024,6 +2024,8 @@ body.pricing-view-active footer {
 .report-drill-table { width: 100%; border-collapse: collapse; table-layout: auto; margin-top: 6px; }
 .report-drill-table th { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; font-size: .8rem; white-space: nowrap; position: sticky; top: 0; z-index: 2; }
 .report-drill-table td { white-space: nowrap; padding: 6px 8px; font-size: .82rem; }
+.report-drill-table td.col-value,
+.preview-table td.col-value { text-align: right; vertical-align: top; white-space: nowrap; overflow-wrap: normal; word-wrap: normal; text-indent: 0; }
 
 /* ── Report Print Preview Modal ─────────────────────────────────────────── */
 .report-print-preview-modal { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; }
